@@ -402,18 +402,24 @@ class PlayoutEngine {
       // If this decoder exited naturally (reached end of file) and is still the active track,
       // trigger the next track immediately to prevent dead space!
       if (this.currentDecoder === decoderProcess) {
-        logger.info('Decoder finished track naturally. Triggering next track immediately to prevent dead space.');
-        if (this.playoutTimeout) {
-          clearTimeout(this.playoutTimeout);
-          this.playoutTimeout = null;
-        }
+        const elapsed = (new Date() - playoutState.startedAt) / 1000;
 
-        const nextTrack = await this.fetchNextTrack();
-        if (nextTrack) {
-          this.play(nextTrack);
+        if (code === 0 && elapsed > 2.0) {
+          logger.info('Decoder finished track naturally after %ss. Triggering next track immediately to prevent dead space.', elapsed.toFixed(1));
+          if (this.playoutTimeout) {
+            clearTimeout(this.playoutTimeout);
+            this.playoutTimeout = null;
+          }
+
+          const nextTrack = await this.fetchNextTrack();
+          if (nextTrack) {
+            this.play(nextTrack);
+          } else {
+            logger.warn('Playout Engine: Queue empty. Replaying current track as emergency filler.');
+            this.play(track);
+          }
         } else {
-          logger.warn('Playout Engine: Queue empty. Replaying current track as emergency filler.');
-          this.play(track);
+          logger.warn('Decoder closed early or abnormally (Exit code: %s, Elapsed: %ss). Preventing infinite skip loop.', code, elapsed.toFixed(1));
         }
       }
     });
