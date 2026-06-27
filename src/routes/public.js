@@ -3,13 +3,17 @@ import playoutState from '../playout/state.js';
 import prisma from '../db.js';
 import logger from '../logger.js';
 
+import playoutEngine from '../playout/engine.js';
+
 const router = express.Router();
 
 // 1. Now Playing and upcoming queue (CORS-enabled public API)
 router.get('/now-playing', (req, res) => {
   res.setHeader('Access-Control-Allow-Origin', '*'); // Enable CORS for external websites
   res.setHeader('Content-Type', 'application/json');
-  res.json(playoutState.getNowPlaying());
+  const np = playoutState.getNowPlaying();
+  np.isSourceConnected = (playoutEngine.masterEncoder !== null);
+  res.json(np);
 });
 
 // 2. Play history log (CORS-enabled public API)

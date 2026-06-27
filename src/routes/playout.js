@@ -49,6 +49,17 @@ router.post('/disconnect', authenticateJWT, requireRole(['ADMIN', 'PRODUCER']), 
   }
 });
 
+// Connect to Icecast (Admin/Producer only)
+router.post('/connect', authenticateJWT, requireRole(['ADMIN', 'PRODUCER']), async (req, res) => {
+  try {
+    await playoutEngine.connect();
+    res.json({ message: 'Reconnected master encoder source to Icecast successfully' });
+  } catch (error) {
+    logger.error('Failed to connect playout source: %O', error);
+    res.status(500).json({ error: 'Failed to connect source' });
+  }
+});
+
 // 2. Instant Carts Configuration & Listing
 router.get('/cart', authenticateJWT, async (req, res) => {
   try {

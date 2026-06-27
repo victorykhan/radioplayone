@@ -483,6 +483,22 @@ class PlayoutEngine {
     }
   }
 
+  // Connect to Icecast (Start master encoder source)
+  async connect() {
+    logger.info('Playout Icecast connect requested.');
+    this.startMasterEncoder();
+    
+    // Wait for encoder to start, then play next track if not already active
+    setTimeout(async () => {
+      if (!this.isPlaying) {
+        const nextTrack = await this.fetchNextTrack();
+        if (nextTrack) {
+          this.play(nextTrack);
+        }
+      }
+    }, 2000);
+  }
+
   // Play an Instant Cart
   async playCart(cartTrack) {
     logger.info('Instant Cart triggered for track ID %s: %s', cartTrack.id, cartTrack.title);

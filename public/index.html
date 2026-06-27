@@ -24,6 +24,48 @@
     body {
       background-color: {{THEME_BACKGROUND}} !important;
     }
+    /* Custom Toggle Switch Styles */
+    .switch-toggle {
+      position: relative;
+      display: inline-block;
+      width: 44px;
+      height: 22px;
+    }
+    .switch-toggle input {
+      opacity: 0;
+      width: 0;
+      height: 0;
+    }
+    .slider-toggle {
+      position: absolute;
+      cursor: pointer;
+      top: 0;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      background-color: #ff3e3e;
+      transition: .3s;
+      border-radius: 22px;
+      box-shadow: inset 0 0 4px rgba(0,0,0,0.4);
+    }
+    .slider-toggle:before {
+      position: absolute;
+      content: "";
+      height: 16px;
+      width: 16px;
+      left: 3px;
+      bottom: 3px;
+      background-color: white;
+      transition: .3s;
+      border-radius: 50%;
+    }
+    input:checked + .slider-toggle {
+      background-color: #00ff66;
+      box-shadow: 0 0 6px rgba(0, 255, 102, 0.3);
+    }
+    input:checked + .slider-toggle:before {
+      transform: translateX(22px);
+    }
   </style>
 </head>
 <body>
@@ -99,7 +141,13 @@
                 <button id="btn-playout-resume" class="form-input" style="width: auto; background: rgba(0,255,102,0.1); border-color: rgba(0,255,102,0.25); cursor: pointer; display: flex; align-items: center; gap: 8px; color: #00ff66; font-weight: 600; display: none;">▶️ Resume</button>
                 <button id="btn-playout-stop" class="form-input" style="width: auto; background: rgba(255,62,62,0.1); border-color: rgba(255,62,62,0.25); cursor: pointer; display: flex; align-items: center; gap: 8px; color: #ff3e3e; font-weight: 600;">⏹️ Stop</button>
                 <button id="btn-skip" class="form-input" style="width: auto; background: rgba(255,255,255,0.05); border-color: rgba(255,255,255,0.1); cursor: pointer; display: flex; align-items: center; gap: 8px; color: var(--text-main); font-weight: 600;">⏭️ Skip</button>
-                <button id="btn-playout-disconnect" class="form-input" style="width: auto; background: rgba(255,255,255,0.02); border-color: rgba(255,255,255,0.05); cursor: pointer; display: flex; align-items: center; gap: 8px; color: var(--text-muted); font-weight: 600; margin-left: auto;">🔌 Disconnect Source</button>
+                <div style="display: flex; align-items: center; gap: 10px; margin-left: auto;" id="source-toggle-wrap">
+                  <span style="font-size: 11.5px; font-weight: 600; color: #00ff66; text-shadow: 0 0 4px rgba(0,255,102,0.2);" id="lbl-source-toggle">🔌 Playout Connected</span>
+                  <label class="switch-toggle">
+                    <input type="checkbox" id="btn-playout-disconnect" checked>
+                    <span class="slider-toggle"></span>
+                  </label>
+                </div>
               </div>
             </div>
 

@@ -309,18 +309,36 @@ function pollNowPlaying() {
   fetch(`${API_BASE}/public/now-playing`)
     .then(res => res.json())
     .then(data => {
-      updateStudioDeck(data.now_playing, data.isPaused, data.isStopped);
+      updateStudioDeck(data.now_playing, data.isPaused, data.isStopped, data.isSourceConnected);
       updateQueueList(data.up_next);
     })
     .catch(err => console.error('Now Playing poll error:', err));
 }
 
-function updateStudioDeck(track, isPaused = false, isStopped = false) {
+function updateStudioDeck(track, isPaused = false, isStopped = false, isSourceConnected = true) {
   const deckTitle = document.getElementById('deck-title');
   const deckArtist = document.getElementById('deck-artist');
   const deckTime = document.getElementById('deck-time');
   const deckProgress = document.getElementById('deck-progress');
   const deckCover = document.getElementById('deck-cover');
+
+  // Sync the source toggle checkbox state
+  const disconnectToggle = document.getElementById('btn-playout-disconnect');
+  const lblToggle = document.getElementById('lbl-source-toggle');
+  if (disconnectToggle) {
+    disconnectToggle.checked = isSourceConnected;
+    if (lblToggle) {
+      if (isSourceConnected) {
+        lblToggle.textContent = '🔌 Playout Connected';
+        lblToggle.style.color = '#00ff66';
+        lblToggle.style.textShadow = '0 0 4px rgba(0,255,102,0.2)';
+      } else {
+        lblToggle.textContent = '🔌 Playout Disconnected';
+        lblToggle.style.color = '#ff3e3e';
+        lblToggle.style.textShadow = '0 0 4px rgba(255,62,62,0.2)';
+      }
+    }
+  }
 
   // Pause / resume button UI sync
   const pauseBtn = document.getElementById('btn-playout-pause');
@@ -2417,15 +2435,51 @@ function loadSettingsUsers() {
   }
 
   if (btnDisconnect) {
-    btnDisconnect.addEventListener('click', () => {
-      showConfirm('Disconnect Stream Source', 'Are you sure you want to completely disconnect the AutoDJ playout engine from the Icecast server?', () => {
-        apiFetch('/playout/disconnect', { method: 'POST' })
+    btnDisconnect.addEventListener('change', () => {
+      const isChecked = btnDisconnect.checked;
+      const lbl = document.getElementById('lbl-source-toggle');
+
+      if (!isChecked) {
+        // Operator requested to disconnect
+        // Prevent toggle switch from changing state visually immediately
+        btnDisconnect.checked = true;
+        
+        showConfirm('Disconnect Stream Source', 'Are you sure you want to completely disconnect the AutoDJ playout engine from the Icecast server?', () => {
+          apiFetch('/playout/disconnect', { method: 'POST' })
+            .then(() => {
+              btnDisconnect.checked = false;
+              if (lbl) {
+                lbl.textContent = '🔌 Playout Disconnected';
+                lbl.style.color = '#ff3e3e';
+                lbl.style.textShadow = '0 0 4px rgba(255,62,62,0.2)';
+              }
+              showNotification('AutoDJ source disconnected from Icecast', 'warning');
+              pollNowPlaying();
+            })
+            .catch(err => {
+              showNotification(err.message, 'error');
+            });
+        });
+      } else {
+        // Operator requested to connect
+        // Prevent toggle switch from changing state visually immediately
+        btnDisconnect.checked = false;
+
+        apiFetch('/playout/connect', { method: 'POST' })
           .then(() => {
-            showNotification('AutoDJ source disconnected from Icecast', 'error');
+            btnDisconnect.checked = true;
+            if (lbl) {
+              lbl.textContent = '🔌 Playout Connected';
+              lbl.style.color = '#00ff66';
+              lbl.style.textShadow = '0 0 4px rgba(0,255,102,0.2)';
+            }
+            showNotification('AutoDJ source connected to Icecast', 'success');
             pollNowPlaying();
           })
-          .catch(err => showNotification(err.message, 'error'));
-      });
+          .catch(err => {
+            showNotification(err.message, 'error');
+          });
+      }
     });
   }
 
