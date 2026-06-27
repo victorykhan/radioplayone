@@ -1,0 +1,282 @@
+import express from 'express';
+import prisma from '../db.js';
+import logger from '../logger.js';
+import { authenticateJWT, requireRole } from './auth.js';
+
+const router = express.Router();
+
+// 1. List playlists with track counts and durations
+router.get('/', authenticateJWT, async (req, res) => {
+  try {
+    const playlists = await prisma.playlist.findMany({
+      include: {
+        _count: {
+          select: { tracks: true }
+        }
+      }
+    });
+    res.json(playlists);
+  } catch (error) {
+    logger.error('Failed to list playlists: %O', error);
+    res.status(500).json({ error: 'Failed to retrieve playlists' });
+  }
+});
+
+// 2. Get single playlist detail (with ordered tracks)
+router.get('/:id', authenticateJWT, async (req, res) => {
+  const id = parseInt(req.params.id);
+  try {
+    const playlist = await prisma.playlist.findUnique({
+      where: { id },
+      include: {
+        tracks: {
+          orderBy: { position: 'asc' },
+          include: {
+            track: true
+          }
+        }
+      }
+    });
+
+    if (!playlist) {
+      return res.status(404).json({ error: 'Playlist not found' });
+    }
+
+    res.json(playlist);
+  } catch (error) {
+    logger.error('Failed to get playlist: %O', error);
+    res.status(500).json({ error: 'Failed to retrieve playlist details' });
+  }
+});
+
+// 3. Create playlist
+router.post('/', authenticateJWT, requireRole(['ADMIN', 'PRODUCER']), async (req, res) => {
+  const { name, isScheduled, scheduleTime, isLooping } = req.body;
+
+  if (!name) {
+    return res.status(400).json({ error: 'Playlist name is required' });
+  }
+
+  try {
+    const playlist = await prisma.playlist.create({
+      data: {
+        name,
+        isScheduled: !!isScheduled,
+        scheduleTime: scheduleTime || null,
+        isLooping: isLooping !== undefined ? !!isLooping : true
+      }
+    });
+
+    await prisma.activityLog.create({
+      data: {
+        userId: req.user.id,
+        action: 'PLAYLIST_CREATED',
+        details: `Created playlist: ${name}`
+      }
+    });
+
+    res.status(201).json(playlist);
+  } catch (error) {
+    logger.error('Failed to create playlist: %O', error);
+    res.status(500).json({ error: 'Failed to create playlist' });
+  }
+});
+
+// 4. Update playlist info (name, schedule, looping status)
+router.patch('/:id', authenticateJWT, requireRole(['ADMIN', 'PRODUCER']), async (req, res) => {
+  const id = parseInt(req.params.id);
+  const { name, isScheduled, scheduleTime, isLooping } = req.body;
+
+  try {
+    const playlist = await prisma.playlist.findUnique({ where: { id } });
+    if (!playlist) {
+      return res.status(404).json({ error: 'Playlist not found' });
+    }
+
+    const updated = await prisma.playlist.update({
+      where: { id },
+      data: {
+        name: name !== undefined ? name : playlist.name,
+        isScheduled: isScheduled !== undefined ? !!isScheduled : playlist.isScheduled,
+        scheduleTime: scheduleTime !== undefined ? scheduleTime : playlist.scheduleTime,
+        isLooping: isLooping !== undefined ? !!isLooping : playlist.isLooping
+      }
+    });
+
+    res.json(updated);
+  } catch (error) {
+    logger.error('Failed to update playlist: %O', error);
+    res.status(500).json({ error: 'Failed to update playlist' });
+  }
+});
+
+// 5. Append tracks to a playlist
+router.post('/:id/tracks', authenticateJWT, requireRole(['ADMIN', 'PRODUCER']), async (req, res) => {
+  const playlistId = parseInt(req.params.id);
+  const { trackIds } = req.body; // Array of track IDs to add
+
+  if (!trackIds || !Array.isArray(trackIds)) {
+    return res.status(400).json({ error: 'trackIds array is required' });
+  }
+
+  try {
+    const playlist = await prisma.playlist.findUnique({ where: { id: playlistId } });
+    if (!playlist) {
+      return res.status(404).json({ error: 'Playlist not found' });
+    }
+
+    // Get current maximum position in playlist
+    const maxPositionRecord = await prisma.playlistTrack.findFirst({
+      where: { playlistId },
+      orderBy: { position: 'desc' }
+    });
+
+    let currentPos = maxPositionRecord ? maxPositionRecord.position + 1 : 0;
+    const addedTracks = [];
+    let playlistDurationDelta = 0.0;
+
+    for (const trackId of trackIds) {
+      const track = await prisma.track.findUnique({ where: { id: parseInt(trackId) } });
+      if (!track || track.isDeleted) continue;
+
+      const playlistTrack = await prisma.playlistTrack.create({
+        data: {
+          playlistId,
+          trackId: track.id,
+          position: currentPos++
+        }
+      });
+
+      playlistDurationDelta += track.duration;
+      addedTracks.push(playlistTrack);
+    }
+
+    // Update total playlist duration
+    await prisma.playlist.update({
+      where: { id: playlistId },
+      data: {
+        duration: {
+          increment: playlistDurationDelta
+        }
+      }
+    });
+
+    res.json({ message: 'Tracks added to playlist', addedTracks });
+
+  } catch (error) {
+    logger.error('Failed adding tracks to playlist: %O', error);
+    res.status(500).json({ error: 'Failed to add tracks' });
+  }
+});
+
+// 6. Remove a track from playlist (and re-index positions)
+router.delete('/:id/tracks/:playlistTrackId', authenticateJWT, requireRole(['ADMIN', 'PRODUCER']), async (req, res) => {
+  const playlistId = parseInt(req.params.id);
+  const playlistTrackId = parseInt(req.params.playlistTrackId);
+
+  try {
+    const pt = await prisma.playlistTrack.findUnique({
+      where: { id: playlistTrackId },
+      include: { track: true }
+    });
+
+    if (!pt || pt.playlistId !== playlistId) {
+      return res.status(404).json({ error: 'Track not found in this playlist' });
+    }
+
+    // Remove the junction record
+    await prisma.playlistTrack.delete({ where: { id: playlistTrackId } });
+
+    // Re-index remaining track positions to keep 0, 1, 2... ordering without gaps
+    const remainingTracks = await prisma.playlistTrack.findMany({
+      where: { playlistId },
+      orderBy: { position: 'asc' }
+    });
+
+    let positionCounter = 0;
+    for (const item of remainingTracks) {
+      await prisma.playlistTrack.update({
+        where: { id: item.id },
+        data: { position: positionCounter++ }
+      });
+    }
+
+    // Update playlist total duration
+    await prisma.playlist.update({
+      where: { id: playlistId },
+      data: {
+        duration: {
+          decrement: pt.track.duration
+        }
+      }
+    });
+
+    res.json({ message: 'Track removed and positions reindexed' });
+
+  } catch (error) {
+    logger.error('Failed to remove track from playlist: %O', error);
+    res.status(500).json({ error: 'Failed to remove track' });
+  }
+});
+
+// 7. Bulk reorder playlist tracks
+router.put('/:id/reorder', authenticateJWT, requireRole(['ADMIN', 'PRODUCER']), async (req, res) => {
+  const playlistId = parseInt(req.params.id);
+  const { trackOrder } = req.body; // Array of { playlistTrackId: number, position: number }
+
+  if (!trackOrder || !Array.isArray(trackOrder)) {
+    return res.status(400).json({ error: 'trackOrder array is required' });
+  }
+
+  try {
+    const playlist = await prisma.playlist.findUnique({ where: { id: playlistId } });
+    if (!playlist) {
+      return res.status(404).json({ error: 'Playlist not found' });
+    }
+
+    // Perform transaction to prevent duplicates / conflicts during mid-run reordering
+    await prisma.$transaction(
+      trackOrder.map(item => 
+        prisma.playlistTrack.update({
+          where: { id: parseInt(item.playlistTrackId), playlistId },
+          data: { position: parseInt(item.position) }
+        })
+      )
+    );
+
+    res.json({ message: 'Playlist tracks reordered successfully' });
+
+  } catch (error) {
+    logger.error('Failed reordering playlist: %O', error);
+    res.status(500).json({ error: 'Failed to reorder playlist tracks' });
+  }
+});
+
+// 8. Delete playlist
+router.delete('/:id', authenticateJWT, requireRole(['ADMIN']), async (req, res) => {
+  const id = parseInt(req.params.id);
+
+  try {
+    const playlist = await prisma.playlist.findUnique({ where: { id } });
+    if (!playlist) {
+      return res.status(404).json({ error: 'Playlist not found' });
+    }
+
+    await prisma.playlist.delete({ where: { id } });
+
+    await prisma.activityLog.create({
+      data: {
+        userId: req.user.id,
+        action: 'PLAYLIST_DELETED',
+        details: `Deleted playlist: ${playlist.name}`
+      }
+    });
+
+    res.json({ message: 'Playlist deleted successfully' });
+  } catch (error) {
+    logger.error('Failed to delete playlist: %O', error);
+    res.status(500).json({ error: 'Failed to delete playlist' });
+  }
+});
+
+export default router;

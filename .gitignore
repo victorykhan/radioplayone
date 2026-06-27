@@ -1,0 +1,13 @@
+node_modules/
+.env
+.env*.local
+dev.db
+dev.db-journal
+storage/tracks/*
+!storage/tracks/.gitkeep
+storage/uploads/*
+!storage/uploads/.gitkeep
+storage/logs/*
+!storage/logs/.gitkeep
+.DS_Store
+*.pem

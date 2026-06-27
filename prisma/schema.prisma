@@ -1,0 +1,130 @@
+datasource db {
+  provider = "sqlite"
+  url      = "file:../dev.db"
+}
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+model User {
+  id           Int           @id @default(autoincrement())
+  email        String        @unique
+  passwordHash String
+  role         String        @default("VIEWER") // ADMIN, DJ, PRODUCER, VIEWER
+  createdAt    DateTime      @default(now())
+  updatedAt    DateTime      @updatedAt
+  activityLogs ActivityLog[]
+}
+
+model Track {
+  id           Int                @id @default(autoincrement())
+  title        String
+  artist       String?
+  album        String?
+  duration     Float              // in seconds
+  fileHash     String             @unique // SHA256 of the audio file to dedup
+  filePath     String             // path to the file on disk
+  fileType     String             @default("SONG") // SONG, AD, JINGLE, STATION_ID, FILLER
+  isDeleted    Boolean            @default(false)
+  createdAt    DateTime           @default(now())
+  updatedAt    DateTime           @updatedAt
+  categories   TrackCategory[]    // many-to-many
+  playlists    PlaylistTrack[]
+  fallbackItem FallbackPoolItem?
+  playLogs     PlayLog[]
+  
+  // Custom Playback Overrides
+  volumeTrim   Float              @default(1.0)  // Volume multiplier (e.g. 0.8 to quiet, 1.2 to boost)
+  cueStart     Float              @default(0.0)  // Skips silence at the start of file
+  cueIntro     Float              @default(0.0)  // Talkover point (where vocals start, DJ voice fades down)
+  cueOutro     Float              @default(0.0)  // Transition trigger point (where next song starts fading in)
+  cueEnd       Float              @default(0.0)  // Cut off point (skips tail silence)
+  fadeDuration Float?                            // Custom fade duration override in seconds
+  isExplicit   Boolean            @default(false)
+}
+
+model TrackCategory {
+  id          Int      @id @default(autoincrement())
+  name        String   @unique
+  description String?
+  tracks      Track[]  // many-to-many
+}
+
+model Playlist {
+  id           Int             @id @default(autoincrement())
+  name         String
+  isScheduled  Boolean         @default(false)
+  scheduleTime String?         // HH:MM format or Cron expression
+  duration     Float           @default(0.0) // sum of track durations
+  isLooping    Boolean         @default(true)
+  createdAt    DateTime        @default(now())
+  updatedAt    DateTime        @updatedAt
+  tracks       PlaylistTrack[]
+}
+
+model PlaylistTrack {
+  id         Int      @id @default(autoincrement())
+  playlistId Int
+  trackId    Int
+  position   Int      // Ordering position (0, 1, 2...)
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  playlist   Playlist @relation(fields: [playlistId], references: [id], onDelete: Cascade)
+  track      Track    @relation(fields: [trackId], references: [id], onDelete: Cascade)
+
+  @@unique([playlistId, position]) // ensure unique positions within a playlist
+}
+
+model FallbackPoolItem {
+  id        Int      @id @default(autoincrement())
+  trackId   Int      @unique
+  priority  Int      @default(0) // Higher = played first
+  createdAt DateTime @default(now())
+
+  track     Track    @relation(fields: [trackId], references: [id], onDelete: Cascade)
+}
+
+model PlayLog {
+  id             Int      @id @default(autoincrement())
+  trackId        Int
+  playedAt       DateTime @default(now())
+  durationPlayed Float    // actual seconds played before transitioning/stopping
+  status         String   @default("COMPLETED") // COMPLETED, INTERRUPTED
+  listenerCount  Int      @default(0)
+  wasAd          Boolean  @default(false)
+
+  track          Track    @relation(fields: [trackId], references: [id], onDelete: Cascade)
+}
+
+model ActivityLog {
+  id        Int      @id @default(autoincrement())
+  userId    Int?
+  action    String
+  details   String?
+  timestamp DateTime @default(now())
+
+  user      User?    @relation(fields: [userId], references: [id], onDelete: SetNull)
+}
+
+model SystemSetting {
+  key   String @id // e.g. "theme", "station_info"
+  value String // JSON string containing settings
+}
+
+model ListenerSession {
+  id             String    @id @default(uuid())
+  icecastId      String    // The unique ID assigned by Icecast
+  ipHash         String    // SHA-256 hash of IP (For GDPR/Privacy Compliance)
+  country        String    @default("Unknown") // Geo-IP country code (e.g., "CA", "US")
+  city           String    @default("Unknown")
+  userAgent      String?
+  deviceType     String    @default("Desktop") // Desktop, Mobile, Smart Speaker, Media Player
+  connectedAt    DateTime  @default(now())
+  disconnectedAt DateTime?
+  duration       Int?      // Connection duration in seconds
+
+  @@index([connectedAt])
+  @@index([disconnectedAt])
+}
