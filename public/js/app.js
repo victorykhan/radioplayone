@@ -19,6 +19,34 @@ let chartGeo = null;
 // Audio preview element
 let previewAudio = null;
 
+// Global Toast Notification Helper
+function showNotification(message, type = 'success') {
+  const container = document.getElementById('toast-container');
+  if (!container) return;
+
+  const toast = document.createElement('div');
+  toast.className = `toast ${type}`;
+  
+  let icon = 'ℹ️';
+  if (type === 'success') icon = '✅';
+  if (type === 'error') icon = '🚨';
+  if (type === 'warning') icon = '⚠️';
+  
+  toast.innerHTML = `
+    <span>${icon}</span>
+    <div style="flex: 1;">${message}</div>
+    <span style="cursor: pointer; opacity: 0.5;" onclick="this.parentElement.remove()">✕</span>
+  `;
+  
+  container.appendChild(toast);
+  
+  // Auto dismiss after 4 seconds
+  setTimeout(() => {
+    toast.classList.add('fade-out');
+    setTimeout(() => toast.remove(), 300);
+  }, 4000);
+}
+
 // Document Ready
 document.addEventListener('DOMContentLoaded', () => {
   initAuth();
@@ -245,7 +273,7 @@ function updateQueueList(queue) {
 document.getElementById('btn-skip').addEventListener('click', () => {
   apiFetch('/tracks/skip', { method: 'POST' })
     .then(() => pollNowPlaying())
-    .catch(err => alert(err.message));
+    .catch(err => showNotification(err.message, 'error'));
 });
 
 // === MUSIC LIBRARY MANAGEMENT ===
@@ -429,7 +457,7 @@ function deleteTrack(id) {
         loadLibraryTracks();
         loadLibraryFolders();
       })
-      .catch(err => alert(err.message));
+      .catch(err => showNotification(err.message, 'error'));
   }
 }
 
@@ -462,7 +490,7 @@ function setupTrackDrawer() {
       coverImg.src = data.coverArtUrl + '?t=' + Date.now(); // cache buster
       pollNowPlaying();
     })
-    .catch(err => alert(err.message));
+    .catch(err => showNotification(err.message, 'error'));
   });
 
   // Save changes form
@@ -489,7 +517,7 @@ function setupTrackDrawer() {
       drawer.classList.remove('open');
       loadLibraryTracks();
     })
-    .catch(err => alert(err.message));
+    .catch(err => showNotification(err.message, 'error'));
   });
 }
 
@@ -557,9 +585,9 @@ function setupCategoryModal() {
       modal.style.display = 'none';
       document.getElementById('category-input-name').value = '';
       loadLibraryFolders();
-      alert('Folder created successfully!');
+      showNotification('Folder created successfully!', 'success');
     })
-    .catch(err => alert(err.message));
+    .catch(err => showNotification(err.message, 'error'));
   });
 }
 
@@ -739,9 +767,9 @@ function setupForms() {
     })
     .then(() => {
       loadThemeSettings();
-      alert('Branding settings saved and applied!');
+      showNotification('Branding settings saved and applied!', 'success');
     })
-    .catch(err => alert(err.message));
+    .catch(err => showNotification(err.message, 'error'));
   });
 
   // Logo upload form submission
@@ -759,9 +787,9 @@ function setupForms() {
     })
     .then(data => {
       document.getElementById('station-logo').src = data.logoUrl;
-      alert('Logo uploaded and applied!');
+      showNotification('Logo uploaded and applied!', 'success');
     })
-    .catch(err => alert(err.message));
+    .catch(err => showNotification(err.message, 'error'));
   });
 }
 
@@ -928,7 +956,7 @@ function setupAudioPlayer() {
       .catch(err => {
         console.error('Audio play failed:', err);
         playBtn.textContent = '▶️';
-        alert('Failed to connect to Icecast stream. Make sure stream is online.');
+        showNotification('Failed to connect to Icecast stream. Make sure stream is online.', 'error');
       });
   });
 }
@@ -950,9 +978,9 @@ document.getElementById('btn-clear-logs').addEventListener('click', () => {
     apiFetch(url, { method })
       .then(() => {
         loadLogs();
-        alert('Logs cleared successfully.');
+        showNotification('Logs cleared successfully.', 'success');
       })
-      .catch(err => alert(err.message));
+      .catch(err => showNotification(err.message, 'error'));
   }
 });
 
@@ -1041,6 +1069,6 @@ function deleteSingleActivityLog(id) {
     .then(() => {
       loadLogs();
     })
-    .catch(err => alert(err.message));
+    .catch(err => showNotification(err.message, 'error'));
 }
 

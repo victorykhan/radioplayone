@@ -43,6 +43,19 @@ const upload = multer({
   }
 });
 
+const uploadImage = multer({
+  storage,
+  fileFilter: (req, file, cb) => {
+    const allowedTypes = ['.jpg', '.jpeg', '.png', '.webp', '.svg'];
+    const ext = path.extname(file.originalname).toLowerCase();
+    if (allowedTypes.includes(ext)) {
+      cb(null, true);
+    } else {
+      cb(new Error(`Only images are allowed: ${allowedTypes.join(', ')}`));
+    }
+  }
+});
+
 // Helper to partition track paths to avoid directory saturation
 const getTrackDestPath = (fileHash, ext) => {
   const prefix1 = fileHash.substring(0, 2);
@@ -498,7 +511,7 @@ router.put('/:id/categories', authenticateJWT, requireRole(['ADMIN', 'PRODUCER']
 });
 
 // 7. Update cover art poster upload
-router.put('/:id/cover', authenticateJWT, requireRole(['ADMIN', 'PRODUCER']), upload.single('cover'), async (req, res) => {
+router.put('/:id/cover', authenticateJWT, requireRole(['ADMIN', 'PRODUCER']), uploadImage.single('cover'), async (req, res) => {
   const trackId = parseInt(req.params.id);
   if (!req.file) {
     return res.status(400).json({ error: 'No image file uploaded' });
