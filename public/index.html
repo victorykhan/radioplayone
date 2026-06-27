@@ -121,7 +121,80 @@
             </div>
           </div>
         </div>
+
+        <!-- ─────────────────────────────────────────────────────── -->
+        <!-- LIVE MONITOR — Studio radio listener with visualizer    -->
+        <!-- ─────────────────────────────────────────────────────── -->
+        <div class="glass-card live-monitor-card">
+          <div class="live-monitor-header">
+            <div style="display:flex; align-items:center; gap:12px;">
+              <h3 style="font-weight:600;">📡 Live Monitor</h3>
+              <span class="live-pill" id="monitor-live-pill">● LIVE</span>
+            </div>
+            <div style="display:flex; gap:10px; align-items:center;">
+              <a href="/stream" target="_blank" class="monitor-ext-link">🌐 Public Player</a>
+              <a href="/icecast-admin/" target="_blank" class="monitor-ext-link monitor-ext-admin">🔧 Icecast Admin</a>
+            </div>
+          </div>
+
+          <div class="live-monitor-body">
+            <!-- Cover + Track Info -->
+            <div class="monitor-track-info">
+              <div class="monitor-cover-wrap">
+                <img id="monitor-cover" src="/images/default-vinyl.svg" class="monitor-cover" alt="Cover" onerror="this.src='/images/default-vinyl.svg'">
+                <span class="monitor-eq" id="monitor-eq"></span>
+              </div>
+              <div class="monitor-meta">
+                <div class="monitor-track-label" id="monitor-track-label">🎵 NOW PLAYING</div>
+                <div class="monitor-title" id="monitor-title">Not Playing</div>
+                <div class="monitor-artist" id="monitor-artist">—</div>
+                <div class="monitor-upnext">
+                  <span style="color:var(--text-muted);font-size:11px;">Up next →</span>
+                  <span id="monitor-upnext">—</span>
+                </div>
+              </div>
+            </div>
+
+            <!-- Spectrum Visualizer -->
+            <div class="monitor-vis-wrap">
+              <canvas id="monitor-vis-canvas"></canvas>
+              <div class="monitor-vis-hint" id="monitor-vis-hint">Press play to activate live monitor</div>
+            </div>
+
+            <!-- Controls row -->
+            <div class="monitor-controls">
+              <button class="monitor-play-btn" id="btn-monitor-play" title="Play / Pause live stream">
+                <svg viewBox="0 0 24 24" width="20" height="20"><path id="monitor-play-icon" fill="currentColor" d="M8 5v14l11-7z"/></svg>
+              </button>
+
+              <div style="flex:1; display:flex; flex-direction:column; gap:4px;">
+                <div class="monitor-progress-track">
+                  <div class="monitor-progress-fill" id="monitor-progress"></div>
+                </div>
+                <div style="display:flex; justify-content:space-between; font-size:10px; color:var(--text-muted);">
+                  <span id="monitor-elapsed">0:00</span>
+                  <span id="monitor-duration">—</span>
+                </div>
+              </div>
+
+              <div style="display:flex; align-items:center; gap:6px;">
+                <span style="font-size:13px;">🔊</span>
+                <input type="range" id="monitor-vol" min="0" max="1" step="0.02" value="0.8" class="monitor-vol-slider">
+              </div>
+
+              <div style="display:flex; align-items:center; gap:6px; flex-shrink:0;">
+                <input type="text" readonly id="monitor-stream-url" value="https://play.vawam.ca/stream.mp3"
+                  class="monitor-url-input" onclick="this.select()" title="Raw MP3 stream URL for apps/players">
+                <button class="monitor-copy-btn" id="btn-monitor-copy-url" title="Copy stream URL">⊙</button>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Hidden audio element for live monitor -->
+        <audio id="monitor-audio" preload="none" crossorigin="anonymous"></audio>
       </section>
+
 
       <!-- SECTION: MUSIC LIBRARY -->
       <section id="section-library" class="view-section">

@@ -1382,3 +1382,243 @@ function deleteSingleActivityLog(id) {
     .catch(err => showNotification(err.message, 'error'));
 }
 
+
+/* ═══════════════════════════════════════════════════════════════
+   LIVE MONITOR MODULE
+   Web Audio API spectrum visualizer + live stream player
+   embedded in the Studio Desk section.
+   ═══════════════════════════════════════════════════════════════ */
+(function initLiveMonitor() {
+  const STREAM_URL    = '/stream.mp3';
+  const NP_URL        = '/api/public/now-playing';
+
+  const audio         = document.getElementById('monitor-audio');
+  const btnPlay       = document.getElementById('btn-monitor-play');
+  const playIcon      = document.getElementById('monitor-play-icon');
+  const volSlider     = document.getElementById('monitor-vol');
+  const coverImg      = document.getElementById('monitor-cover');
+  const titleEl       = document.getElementById('monitor-title');
+  const artistEl      = document.getElementById('monitor-artist');
+  const upNextEl      = document.getElementById('monitor-upnext');
+  const progressFill  = document.getElementById('monitor-progress');
+  const elapsedEl     = document.getElementById('monitor-elapsed');
+  const durationEl    = document.getElementById('monitor-duration');
+  const eqDot         = document.getElementById('monitor-eq');
+  const trackLabel    = document.getElementById('monitor-track-label');
+  const visHint       = document.getElementById('monitor-vis-hint');
+  const canvas        = document.getElementById('monitor-vis-canvas');
+  const btnCopy       = document.getElementById('btn-monitor-copy-url');
+
+  if (!audio || !canvas) return; // Elements not in DOM yet
+
+  const ctx2d = canvas.getContext('2d');
+  let isPlaying   = false;
+  let audioCtx, analyser, mediaSource, animFrameId;
+
+  const PLAY_PATH  = 'M8 5v14l11-7z';
+  const PAUSE_PATH = 'M6 19h4V5H6v14zm8-14v14h4V5h-4z';
+
+  // ── Volume ──────────────────────────────────────────────────
+  if (audio) {
+    audio.volume = parseFloat(volSlider.value);
+    volSlider.addEventListener('input', () => {
+      audio.volume = parseFloat(volSlider.value);
+    });
+  }
+
+  // ── Canvas sizing ───────────────────────────────────────────
+  function resizeCanvas() {
+    const rect = canvas.parentElement.getBoundingClientRect();
+    canvas.width  = rect.width  * (window.devicePixelRatio || 1);
+    canvas.height = rect.height * (window.devicePixelRatio || 1);
+  }
+  window.addEventListener('resize', resizeCanvas);
+  resizeCanvas();
+
+  // ── Idle waveform animation (no audio) ─────────────────────
+  let idleAnimId = null;
+  function drawIdle() {
+    if (isPlaying) return;
+    const W = canvas.width, H = canvas.height;
+    ctx2d.clearRect(0, 0, W, H);
+    const barCount = 52;
+    const dpr = window.devicePixelRatio || 1;
+    const gap = 2.5 * dpr;
+    const barW = (W - (barCount - 1) * gap) / barCount;
+    const t = Date.now() / 600;
+    for (let i = 0; i < barCount; i++) {
+      const val = (Math.sin(t + i * 0.38) * 0.5 + 0.5) * 0.18 + 0.03;
+      const barH = val * H;
+      const x = i * (barW + gap);
+      const y = H - barH;
+      ctx2d.fillStyle = 'rgba(255,255,255,0.055)';
+      ctx2d.beginPath();
+      ctx2d.roundRect(x, y, barW, barH, 1.5 * dpr);
+      ctx2d.fill();
+    }
+    idleAnimId = requestAnimationFrame(drawIdle);
+  }
+  drawIdle();
+
+  // ── Live visualizer ─────────────────────────────────────────
+  function drawLive() {
+    if (!isPlaying) return;
+    animFrameId = requestAnimationFrame(drawLive);
+    const W = canvas.width, H = canvas.height;
+    ctx2d.clearRect(0, 0, W, H);
+    if (!analyser) return;
+
+    const bufLen = analyser.frequencyBinCount;
+    const data   = new Uint8Array(bufLen);
+    analyser.getByteFrequencyData(data);
+
+    const barCount = Math.min(bufLen, 52);
+    const dpr = window.devicePixelRatio || 1;
+    const gap  = 2.5 * dpr;
+    const barW = (W - (barCount - 1) * gap) / barCount;
+
+    for (let i = 0; i < barCount; i++) {
+      const val  = data[i] / 255;
+      const barH = Math.max(2 * dpr, val * H * 0.92);
+      const x    = i * (barW + gap);
+      const y    = H - barH;
+      const hue  = 185 + (i / barCount) * 110;
+
+      const grad = ctx2d.createLinearGradient(0, y, 0, H);
+      grad.addColorStop(0, `hsla(${hue},100%,65%,0.9)`);
+      grad.addColorStop(1, `hsla(${hue},100%,45%,0.2)`);
+      ctx2d.fillStyle = grad;
+      ctx2d.beginPath();
+      ctx2d.roundRect(x, y, barW, barH, [Math.min(barW / 2, 2.5 * dpr), Math.min(barW / 2, 2.5 * dpr), 0, 0]);
+      ctx2d.fill();
+    }
+  }
+
+  // ── Web Audio setup ─────────────────────────────────────────
+  function initAudioCtx() {
+    if (audioCtx) return;
+    try {
+      audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+      analyser = audioCtx.createAnalyser();
+      analyser.fftSize = 128;
+      analyser.smoothingTimeConstant = 0.82;
+      mediaSource = audioCtx.createMediaElementSource(audio);
+      mediaSource.connect(analyser);
+      analyser.connect(audioCtx.destination);
+    } catch (e) {
+      console.warn('[LiveMonitor] Web Audio API unavailable:', e);
+    }
+  }
+
+  // ── Play / Pause ────────────────────────────────────────────
+  if (btnPlay) {
+    btnPlay.addEventListener('click', () => {
+      if (!isPlaying) {
+        initAudioCtx();
+        if (audioCtx && audioCtx.state === 'suspended') audioCtx.resume();
+        // Bypass browser cache with timestamp to force fresh stream connection
+        audio.src = STREAM_URL + '?_t=' + Date.now();
+        audio.play().catch(e => {
+          console.error('[LiveMonitor] Play error:', e);
+          showNotification('Could not connect to live stream. Check stream status.', 'error');
+        });
+        isPlaying = true;
+        playIcon.setAttribute('d', PAUSE_PATH);
+        coverImg.classList.add('spinning');
+        eqDot.classList.add('active');
+        visHint.style.display = 'none';
+        if (idleAnimId) { cancelAnimationFrame(idleAnimId); idleAnimId = null; }
+        drawLive();
+      } else {
+        audio.pause();
+        audio.src = '';
+        isPlaying = false;
+        playIcon.setAttribute('d', PLAY_PATH);
+        coverImg.classList.remove('spinning');
+        eqDot.classList.remove('active');
+        if (animFrameId) { cancelAnimationFrame(animFrameId); animFrameId = null; }
+        drawIdle();
+      }
+    });
+  }
+
+  audio.addEventListener('error', () => {
+    isPlaying = false;
+    if (playIcon) playIcon.setAttribute('d', PLAY_PATH);
+    if (coverImg) coverImg.classList.remove('spinning');
+    if (eqDot)   eqDot.classList.remove('active');
+    showNotification('Live stream connection lost. Stream may be offline.', 'warning');
+  });
+
+  // ── Copy URL ────────────────────────────────────────────────
+  if (btnCopy) {
+    btnCopy.addEventListener('click', () => {
+      const url = document.getElementById('monitor-stream-url').value;
+      navigator.clipboard.writeText(url).then(() => {
+        showNotification('Stream URL copied to clipboard!', 'success');
+      }).catch(() => {
+        document.getElementById('monitor-stream-url').select();
+        document.execCommand('copy');
+        showNotification('Stream URL copied!', 'success');
+      });
+    });
+  }
+
+  // ── Format seconds ──────────────────────────────────────────
+  function fmtTime(s) {
+    if (!s || isNaN(s)) return '—';
+    s = Math.floor(s);
+    return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`;
+  }
+
+  // ── Now-playing sync (shares data with deck poller) ─────────
+  // We piggyback on the existing studio poll; register a hook.
+  // Falls back to its own interval if the hook isn't available.
+  function syncFromNowPlaying(data) {
+    if (!data) return;
+    const np = data.now_playing;
+    if (!np) return;
+
+    // Update metadata
+    titleEl.textContent  = np.title  || 'Unknown Track';
+    artistEl.textContent = np.artist || 'Unknown Artist';
+
+    const typeMap = { SONG:'🎵 NOW PLAYING', AD:'💰 AD BREAK', JINGLE:'🎤 JINGLE', STATION_ID:'📻 STATION ID', FILLER:'🎵 NOW PLAYING' };
+    trackLabel.textContent = typeMap[np.fileType] || '🎵 NOW PLAYING';
+
+    // Cover art
+    if (np.coverArtUrl) {
+      const target = np.coverArtUrl;
+      if (!coverImg.src.endsWith(target)) {
+        coverImg.src = target;
+        coverImg.onerror = () => { coverImg.src = '/images/default-vinyl.svg'; };
+      }
+    }
+
+    // Progress
+    const elapsed = np.elapsed || 0;
+    const dur     = np.duration;
+    elapsedEl.textContent  = fmtTime(elapsed);
+    durationEl.textContent = dur ? fmtTime(dur) : '—';
+    if (dur) progressFill.style.width = Math.min(100, (elapsed / dur) * 100) + '%';
+
+    // Up next
+    if (data.up_next && data.up_next.length > 0) {
+      const nx = data.up_next[0];
+      upNextEl.textContent = `${nx.title}${nx.artist ? ' — ' + nx.artist : ''}`;
+    }
+  }
+
+  // Standalone poll (runs every 4s; the deck section also polls)
+  async function pollMonitorNP() {
+    try {
+      const res = await fetch(NP_URL);
+      if (!res.ok) return;
+      const data = await res.json();
+      syncFromNowPlaying(data);
+    } catch(e) {}
+  }
+  pollMonitorNP();
+  setInterval(pollMonitorNP, 4000);
+
+})(); // end initLiveMonitor IIFE
