@@ -156,7 +156,7 @@ body {
 .folder-card:hover, .folder-card.active {
   background: rgba(255, 255, 255, 0.06);
   border-color: var(--primary-color);
-  box-shadow: 0 0 12px rgba(0, 240, 255, 0.15);
+  box-shadow: 0 0 12px var(--primary-glow);
 }
 
 .folder-icon {

@@ -12,6 +12,10 @@ let activeFolderId = null; // null = "All Tracks"
 let sortField = 'title';
 let sortOrder = 'asc';
 
+// Chart instances
+let chartHours = null;
+let chartGeo = null;
+
 // Audio preview element
 let previewAudio = null;
 
@@ -133,6 +137,7 @@ function switchView(viewName) {
 
   // Trigger specific reloads
   if (viewName === 'analytics') loadAnalytics();
+  if (viewName === 'logs') loadLogs();
   if (viewName === 'library') {
     loadLibraryFolders();
     loadLibraryTracks();
@@ -545,6 +550,20 @@ function handleBulkUpload(files) {
   xhr.send(formData);
 }
 
+// Helper to convert hex colors to RGBA with dynamic opacity for glows
+const hexToRgbA = (hex, alpha) => {
+  let c;
+  if(/^#([A-Fa-f0-9]{3}){1,2}$/.test(hex)){
+    c= hex.substring(1).split('');
+    if(c.length== 3){
+      c= [c[0], c[0], c[1], c[1], c[2], c[2]];
+    }
+    c= '0x' + c.join('');
+    return 'rgba('+[(c>>16)&255, (c>>8)&255, c&255].join(',')+','+alpha+')';
+  }
+  return hex;
+};
+
 // === SETTINGS & THEME CUSTOMIZATION ===
 function loadThemeSettings() {
   fetch(`${API_BASE}/settings`, {
@@ -552,9 +571,15 @@ function loadThemeSettings() {
   })
   .then(res => res.json())
   .then(data => {
-    // Apply layout variables
+    // Apply layout variables and glows dynamically
+    const primaryGlow = hexToRgbA(data.theme.primary, 0.35);
+    const secondaryGlow = hexToRgbA(data.theme.secondary, 0.35);
+    
     document.documentElement.style.setProperty('--primary-color', data.theme.primary);
     document.documentElement.style.setProperty('--secondary-color', data.theme.secondary);
+    document.documentElement.style.setProperty('--primary-glow', primaryGlow);
+    document.documentElement.style.setProperty('--secondary-glow', secondaryGlow);
+    
     document.getElementById('station-logo').src = data.theme.logoUrl;
     document.getElementById('station-name').textContent = data.station_info.name;
 
@@ -656,6 +681,39 @@ function loadAnalytics() {
     })
     .catch(err => console.error('Failed loading analytics:', err));
 
+  apiFetch('/analytics/listeners')
+    .then(data => {
+      // 1. Render Listener Geo Doughnut Chart
+      const ctxGeo = document.getElementById('chart-geo-countries').getContext('2d');
+      if (chartGeo) chartGeo.destroy();
+
+      const labels = data.countries.map(c => c.country);
+      const counts = data.countries.map(c => c.count);
+
+      const primaryColor = getComputedStyle(document.documentElement).getPropertyValue('--primary-color').trim() || '#00f0ff';
+      const secondaryColor = getComputedStyle(document.documentElement).getPropertyValue('--secondary-color').trim() || '#7000ff';
+
+      chartGeo = new Chart(ctxGeo, {
+        type: 'doughnut',
+        data: {
+          labels: labels.length > 0 ? labels : ['No Data'],
+          datasets: [{
+            data: counts.length > 0 ? counts : [1],
+            backgroundColor: [primaryColor, secondaryColor, '#ffaa00', '#55ff00', '#ff00ff'],
+            borderWidth: 0
+          }]
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          plugins: {
+            legend: { display: false }
+          }
+        }
+      });
+    })
+    .catch(err => console.error('Failed loading geo analytics:', err));
+
   apiFetch('/analytics/tracks-performance')
     .then(data => {
       const tbody = document.getElementById('analytics-table-body');
@@ -665,6 +723,46 @@ function loadAnalytics() {
         return;
       }
 
+      // 2. Render Listener Trends Line Chart based on playlog audience levels
+      const ctxHours = document.getElementById('chart-listening-hours').getContext('2d');
+      if (chartHours) chartHours.destroy();
+
+      // Pull up to last 8 plays for visual timeline
+      const recentPlays = data.slice(0, 8).reverse();
+      const chartLabels = recentPlays.map(p => p.title.substring(0, 10) + '...');
+      const audienceLevels = recentPlays.map(p => p.listenersStart);
+
+      const primaryColor = getComputedStyle(document.documentElement).getPropertyValue('--primary-color').trim() || '#00f0ff';
+      const primaryGlow = getComputedStyle(document.documentElement).getPropertyValue('--primary-glow').trim() || 'rgba(0, 240, 255, 0.3)';
+
+      chartHours = new Chart(ctxHours, {
+        type: 'line',
+        data: {
+          labels: chartLabels.length > 0 ? chartLabels : ['Slot 1', 'Slot 2', 'Slot 3'],
+          datasets: [{
+            label: 'Concurrent Audience',
+            data: audienceLevels.length > 0 ? audienceLevels : [0, 0, 0],
+            borderColor: primaryColor,
+            backgroundColor: primaryGlow,
+            fill: true,
+            tension: 0.4,
+            borderWidth: 3
+          }]
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          scales: {
+            y: { beginAtZero: true, grid: { color: 'rgba(255,255,255,0.05)' } },
+            x: { grid: { display: false } }
+          },
+          plugins: {
+            legend: { display: false }
+          }
+        }
+      });
+
+      // Populate retention table
       data.forEach(log => {
         const tr = document.createElement('tr');
         const timeStr = new Date(log.playedAt).toLocaleTimeString();
@@ -739,3 +837,115 @@ function setupAudioPlayer() {
       });
   });
 }
+
+// === SYSTEM & AUDIT LOGS MANAGEMENT ===
+let activeLogType = 'activity';
+
+// Bind Logs UI Listeners
+document.getElementById('select-log-type').addEventListener('change', (e) => {
+  activeLogType = e.target.value;
+  loadLogs();
+});
+
+document.getElementById('btn-clear-logs').addEventListener('click', () => {
+  if (confirm(`Are you sure you want to clear all ${activeLogType} logs? This action is permanent.`)) {
+    const method = 'DELETE';
+    const url = activeLogType === 'activity' ? '/logs/activity' : '/logs/system';
+    
+    apiFetch(url, { method })
+      .then(() => {
+        loadLogs();
+        alert('Logs cleared successfully.');
+      })
+      .catch(err => alert(err.message));
+  }
+});
+
+function loadLogs() {
+  const url = activeLogType === 'activity' ? '/logs/activity' : '/logs/system';
+  const header = document.getElementById('logs-table-header');
+  const tbody = document.getElementById('logs-table-body');
+  
+  tbody.innerHTML = `<tr><td colspan="5" style="text-align: center; color: var(--text-muted); padding: 20px 0;">Loading logs...</td></tr>`;
+
+  // Draw appropriate table headers
+  if (activeLogType === 'activity') {
+    header.innerHTML = `
+      <tr>
+        <th>User</th>
+        <th>Action</th>
+        <th>Details</th>
+        <th>Timestamp</th>
+        <th style="width: 80px;">Action</th>
+      </tr>
+    `;
+  } else {
+    header.innerHTML = `
+      <tr>
+        <th style="width: 100px;">Level</th>
+        <th>Message</th>
+        <th>Details/Error</th>
+        <th>Timestamp</th>
+      </tr>
+    `;
+  }
+
+  apiFetch(url)
+    .then(logs => {
+      tbody.innerHTML = '';
+      if (logs.length === 0) {
+        tbody.innerHTML = `<tr><td colspan="5" style="text-align: center; color: var(--text-muted); padding: 20px 0;">No log records found.</td></tr>`;
+        return;
+      }
+
+      logs.forEach(log => {
+        const tr = document.createElement('tr');
+        const timeStr = new Date(log.timestamp).toLocaleString();
+
+        if (activeLogType === 'activity') {
+          tr.innerHTML = `
+            <td style="font-weight: 600;">${log.email}</td>
+            <td><span style="background: rgba(255,255,255,0.06); padding: 4px 8px; border-radius: 4px; font-size: 11px;">${log.action}</span></td>
+            <td style="font-size: 13px; color: var(--text-muted);">${log.details || 'None'}</td>
+            <td style="font-size: 13px; color: var(--text-muted);">${timeStr}</td>
+            <td>
+              <button class="control-btn btn-delete-log" data-id="${log.id}" style="font-size: 13px; color: #ff5252;">🗑️</button>
+            </td>
+          `;
+          tr.querySelector('.btn-delete-log').addEventListener('click', () => deleteSingleActivityLog(log.id));
+        } else {
+          // Winston System Logs
+          let levelColor = '#00f0ff'; // info
+          if (log.level === 'error') levelColor = '#ff3c3c';
+          if (log.level === 'warn') levelColor = '#ffaa00';
+
+          let detailsStr = '';
+          if (log.stack) {
+            detailsStr = `<pre style="font-family: monospace; font-size: 11px; max-height: 80px; overflow-y: auto; color: #ff7b7b;">${log.stack}</pre>`;
+          } else if (typeof log.message !== 'string') {
+            detailsStr = `<pre style="font-family: monospace; font-size: 11px;">${JSON.stringify(log)}</pre>`;
+          }
+
+          tr.innerHTML = `
+            <td><span style="color: ${levelColor}; font-weight: 600; text-transform: uppercase; font-size: 12px;">${log.level || 'info'}</span></td>
+            <td style="font-size: 13px;">${log.message || 'System operation'}</td>
+            <td>${detailsStr}</td>
+            <td style="font-size: 13px; color: var(--text-muted);">${timeStr}</td>
+          `;
+        }
+        tbody.appendChild(tr);
+      });
+    })
+    .catch(err => {
+      tbody.innerHTML = `<tr><td colspan="5" style="text-align: center; color: #ff3c3c; padding: 20px 0;">Error: ${err.message}</td></tr>`;
+    });
+}
+
+function deleteSingleActivityLog(id) {
+  apiFetch(`/logs/activity/${id}`, { method: 'DELETE' })
+    .then(() => {
+      loadLogs();
+    })
+    .catch(err => alert(err.message));
+}
+

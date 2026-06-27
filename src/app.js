@@ -16,6 +16,7 @@ import settingsRoutes from './routes/settings.js';
 import analyticsRoutes from './routes/analytics.js';
 import publicRoutes from './routes/public.js';
 import icecastAnalyticsRoutes from './routes/icecastAnalytics.js';
+import logRoutes from './routes/logs.js';
 
 // Playout Engine Import
 import playoutEngine from './playout/engine.js';
@@ -54,6 +55,7 @@ app.use('/api/settings', settingsRoutes);
 app.use('/api/analytics', analyticsRoutes);
 app.use('/api/public', publicRoutes);
 app.use('/api/analytics/icecast', icecastAnalyticsRoutes);
+app.use('/api/logs', logRoutes);
 
 // Fallback route: serve index.html for SPAs
 app.get('*', (req, res) => {
