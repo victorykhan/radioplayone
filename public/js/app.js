@@ -1208,62 +1208,207 @@ function loadAnalytics() {
     .catch(err => console.error('Failed loading play retention analytics:', err));
 }
 
-// === BOTTOM WEB AUDIO PLAYER ===
+// === BOTTOM WEB AUDIO PLAYER (persistent footer mini-player) ===
 function setupAudioPlayer() {
-  const playBtn = document.getElementById('btn-player-play');
-  const volumeSlider = document.getElementById('player-volume');
-  const briefTitle = document.getElementById('player-brief-title');
-  const briefArtist = document.getElementById('player-brief-artist');
-  const briefCover = document.getElementById('player-brief-cover');
+  const playBtn     = document.getElementById('btn-player-play');
+  const volSlider   = document.getElementById('player-volume');
+  const bpTitle     = document.getElementById('bp-title');
+  const bpArtist    = document.getElementById('bp-artist');
+  const bpCover     = document.getElementById('bp-cover');
+  const bpProgress  = document.getElementById('bp-progress');
+  const bpStatusDot = document.getElementById('bp-status-dot');
+  const bpCanvas    = document.getElementById('bp-vis-canvas');
 
-  // Listen to volume updates
-  volumeSlider.addEventListener('input', () => {
-    if (previewAudio) previewAudio.volume = volumeSlider.value;
+  if (!playBtn) return;
+
+  const STREAM_URL = '/stream.mp3';
+  let bpAudio      = null;
+  let bpPlaying    = false;
+  let bpAudioCtx, bpAnalyser, bpSource, bpAnimId;
+
+  // ── Mini canvas visualizer ───────────────────────────────────
+  let bpCtx = null;
+  if (bpCanvas) {
+    bpCtx = bpCanvas.getContext('2d');
+    function resizeBpCanvas() {
+      const r = bpCanvas.parentElement.getBoundingClientRect();
+      bpCanvas.width  = r.width  * (window.devicePixelRatio || 1);
+      bpCanvas.height = r.height * (window.devicePixelRatio || 1);
+    }
+    window.addEventListener('resize', resizeBpCanvas);
+    resizeBpCanvas();
+
+    // Idle sine animation
+    let bpIdleId = null;
+    function drawBpIdle() {
+      if (bpPlaying) return;
+      const W = bpCanvas.width, H = bpCanvas.height;
+      bpCtx.clearRect(0, 0, W, H);
+      const count = 30, dpr = window.devicePixelRatio || 1;
+      const gap = 2.5 * dpr, barW = (W - (count - 1) * gap) / count;
+      const t = Date.now() / 700;
+      for (let i = 0; i < count; i++) {
+        const val  = (Math.sin(t + i * 0.45) * 0.5 + 0.5) * 0.2 + 0.04;
+        const barH = val * H, x = i * (barW + gap), y = H - barH;
+        bpCtx.fillStyle = 'rgba(255,255,255,0.05)';
+        bpCtx.beginPath();
+        bpCtx.roundRect(x, y, barW, barH, 1 * dpr);
+        bpCtx.fill();
+      }
+      bpIdleId = requestAnimationFrame(drawBpIdle);
+    }
+    drawBpIdle();
+
+    function drawBpLive() {
+      if (!bpPlaying) return;
+      bpAnimId = requestAnimationFrame(drawBpLive);
+      const W = bpCanvas.width, H = bpCanvas.height;
+      bpCtx.clearRect(0, 0, W, H);
+      if (!bpAnalyser) return;
+      const buf = new Uint8Array(bpAnalyser.frequencyBinCount);
+      bpAnalyser.getByteFrequencyData(buf);
+      const count = Math.min(buf.length, 30), dpr = window.devicePixelRatio || 1;
+      const gap = 2.5 * dpr, barW = (W - (count - 1) * gap) / count;
+      for (let i = 0; i < count; i++) {
+        const val  = buf[i] / 255;
+        const barH = Math.max(2 * dpr, val * H * 0.9);
+        const x = i * (barW + gap), y = H - barH;
+        const hue = 185 + (i / count) * 100;
+        const g = bpCtx.createLinearGradient(0, y, 0, H);
+        g.addColorStop(0, `hsla(${hue},100%,65%,0.85)`);
+        g.addColorStop(1, `hsla(${hue},100%,45%,0.15)`);
+        bpCtx.fillStyle = g;
+        bpCtx.beginPath();
+        bpCtx.roundRect(x, y, barW, barH, [Math.min(barW / 2, 2 * dpr), Math.min(barW / 2, 2 * dpr), 0, 0]);
+        bpCtx.fill();
+      }
+    }
+
+    // Expose drawBpIdle/Live for play toggle below
+    window._bpDrawIdle = drawBpIdle;
+    window._bpDrawLive = drawBpLive;
+    window._bpIdleId   = () => bpIdleId;
+    window._stopBpIdle = () => { if (bpIdleId) { cancelAnimationFrame(bpIdleId); bpIdleId = null; } };
+  }
+
+  // ── Volume ───────────────────────────────────────────────────
+  volSlider.addEventListener('input', () => {
+    if (bpAudio) bpAudio.volume = parseFloat(volSlider.value);
   });
 
-  // Play button click
+  // ── Play / Pause ─────────────────────────────────────────────
   playBtn.addEventListener('click', () => {
-    // If audio is currently playing, pause it
-    if (previewAudio && !previewAudio.paused) {
-      previewAudio.pause();
+    if (bpPlaying && bpAudio) {
+      bpAudio.pause();
+      bpAudio.src = '';
+      bpPlaying = false;
       playBtn.textContent = '▶️';
+      if (bpAnimId) { cancelAnimationFrame(bpAnimId); bpAnimId = null; }
+      if (window._bpDrawIdle) window._bpDrawIdle();
       return;
     }
 
-    // Configure and start play
-    playBtn.textContent = '⏳';
-    
-    // Standard stream URL on play.vawam.ca domain
-    // We append cache buster to prevent browser from caching the stream buffer
-    const streamUrl = `https://play.vawam.ca/stream?cb=${Date.now()}`;
-    
-    if (!previewAudio) {
-      previewAudio = new Audio();
+    // Init Web Audio on first play (requires user gesture)
+    if (!bpAudioCtx) {
+      try {
+        bpAudioCtx = new (window.AudioContext || window.webkitAudioContext)();
+        bpAnalyser = bpAudioCtx.createAnalyser();
+        bpAnalyser.fftSize = 64;
+        bpAnalyser.smoothingTimeConstant = 0.8;
+      } catch(e) {}
     }
-    
-    previewAudio.src = streamUrl;
-    previewAudio.volume = volumeSlider.value;
-    
-    previewAudio.play()
+
+    if (!bpAudio) { bpAudio = new Audio(); bpAudio.crossOrigin = 'anonymous'; }
+
+    // Connect to analyser if not already done
+    if (bpAudioCtx && bpAnalyser && !bpSource) {
+      try {
+        bpSource = bpAudioCtx.createMediaElementSource(bpAudio);
+        bpSource.connect(bpAnalyser);
+        bpAnalyser.connect(bpAudioCtx.destination);
+      } catch(e) {}
+    }
+
+    if (bpAudioCtx && bpAudioCtx.state === 'suspended') bpAudioCtx.resume();
+
+    bpAudio.src = STREAM_URL + '?_t=' + Date.now();
+    bpAudio.volume = parseFloat(volSlider.value);
+    playBtn.textContent = '⏳';
+
+    bpAudio.play()
       .then(() => {
+        bpPlaying = true;
         playBtn.textContent = '⏸️';
-        // Poll for current playing title updates
-        fetch(`${API_BASE}/public/now-playing`)
-          .then(res => res.json())
-          .then(data => {
-            if (data.now_playing) {
-              briefTitle.textContent = data.now_playing.title;
-              briefArtist.textContent = data.now_playing.artist;
-              briefCover.src = data.now_playing.coverArtUrl || '/covers/default-vinyl.svg';
-            }
-          });
+        if (window._stopBpIdle) window._stopBpIdle();
+        if (window._bpDrawLive) window._bpDrawLive();
       })
       .catch(err => {
-        console.error('Audio play failed:', err);
+        console.error('[BottomPlayer] Stream error:', err);
         playBtn.textContent = '▶️';
-        showNotification('Failed to connect to Icecast stream. Make sure stream is online.', 'error');
+        showNotification('Could not connect to live stream. Is the stream active?', 'error');
       });
+
+    bpAudio.addEventListener('error', () => {
+      bpPlaying = false;
+      playBtn.textContent = '▶️';
+      if (window._bpDrawIdle) window._bpDrawIdle();
+      bpStatusDot.className = 'bp-dot bp-dot--offline';
+    }, { once: false });
   });
+
+  // ── Format time helper ────────────────────────────────────────
+  function fmtBpTime(s) {
+    if (!s || isNaN(s)) return '';
+    s = Math.floor(s);
+    return `${Math.floor(s/60)}:${String(s%60).padStart(2,'0')}`;
+  }
+
+  // ── Now-playing poll — runs from page load, no play required ──
+  async function pollBpNowPlaying() {
+    try {
+      const res = await fetch('/api/public/now-playing');
+      if (!res.ok) throw new Error('offline');
+      const data = await res.json();
+      const np = data.now_playing;
+
+      if (np && np.title) {
+        // Stream is reachable — mark LIVE
+        bpStatusDot.className = 'bp-dot bp-dot--live';
+        bpStatusDot.title = '● Stream LIVE';
+
+        bpTitle.textContent  = np.title  || '—';
+        bpArtist.textContent = np.artist ? '— ' + np.artist : '';
+
+        // Cover art
+        if (np.coverArtUrl) {
+          const target = np.coverArtUrl;
+          if (!bpCover.src.endsWith(target)) {
+            bpCover.src = target;
+            bpCover.onerror = () => { bpCover.src = '/images/default-vinyl.svg'; };
+          }
+        }
+
+        // Progress
+        const elapsed = np.elapsed || 0;
+        const dur = np.duration;
+        if (dur) bpProgress.style.width = Math.min(100, (elapsed / dur) * 100) + '%';
+
+      } else {
+        bpStatusDot.className = 'bp-dot bp-dot--offline';
+        bpTitle.textContent   = 'Stream Active';
+        bpArtist.textContent  = '';
+      }
+    } catch(e) {
+      bpStatusDot.className = 'bp-dot bp-dot--offline';
+      bpTitle.textContent   = 'Station Offline';
+      bpArtist.textContent  = '';
+      bpProgress.style.width = '0%';
+    }
+  }
+
+  // Start polling immediately on page load
+  pollBpNowPlaying();
+  setInterval(pollBpNowPlaying, 4000);
 }
 
 // === SYSTEM & AUDIT LOGS MANAGEMENT ===
