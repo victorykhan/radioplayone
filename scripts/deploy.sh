@@ -73,12 +73,14 @@ sudo cat << 'EOF' > /tmp/nginx-radioplay
 server {
     listen 80;
     server_name play.vawam.ca;
+    client_max_body_size 50M;
     return 301 https://$host$request_uri;
 }
 
 server {
     listen 443 ssl;
     server_name play.vawam.ca;
+    client_max_body_size 50M;
 
     ssl_certificate /etc/nginx/ssl/fullchain.cer;
     ssl_certificate_key /etc/nginx/ssl/play.vawam.ca.key;

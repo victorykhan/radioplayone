@@ -33,6 +33,7 @@ model Track {
   playlists    PlaylistTrack[]
   fallbackItem FallbackPoolItem?
   playLogs     PlayLog[]
+  adTrack      AdTrack?
   
   // Custom Playback Overrides
   volumeTrim   Float              @default(1.0)  // Volume multiplier (e.g. 0.8 to quiet, 1.2 to boost)
@@ -127,4 +128,34 @@ model ListenerSession {
 
   @@index([connectedAt])
   @@index([disconnectedAt])
+}
+
+model Campaign {
+  id                String    @id @default(uuid())
+  clientName        String
+  clientIndustry    String    // e.g. "Automotive", "Beverage"
+  name              String    // e.g. "Summer Deal 2026"
+  startDate         DateTime
+  endDate           DateTime
+  targetPlays       Int       // Total contracted plays
+  currentPlays      Int       @default(0)
+  targetImpressions Int       // Total contracted listener impressions
+  cpc               Float     // Cost Per Play or Cost Per Impression (for revenue tracking)
+  
+  // Optimization Constraints
+  dailyCap          Int       // Max plays per day
+  hourlyCap         Int       // Max plays per hour
+  validHoursStart   Int       @default(0)
+  validHoursEnd     Int       @default(23)
+  
+  ads               AdTrack[]
+}
+
+model AdTrack {
+  id          String   @id @default(uuid())
+  trackId     Int      @unique
+  campaignId  String
+  
+  track       Track    @relation(fields: [trackId], references: [id], onDelete: Cascade)
+  campaign    Campaign @relation(fields: [campaignId], references: [id], onDelete: Cascade)
 }
