@@ -382,6 +382,7 @@ function updateStudioDeck(track, isPaused = false, isStopped = false, isSourceCo
 
   if (!track || isStopped) {
     deckTitle.textContent = 'No Track Playing';
+    deckTitle.style.color = '';
     deckArtist.textContent = isStopped ? 'Playout stopped' : 'Playout offline';
     deckTime.textContent = '00:00';
     deckProgress.style.width = '0%';
@@ -390,6 +391,7 @@ function updateStudioDeck(track, isPaused = false, isStopped = false, isSourceCo
   }
 
   deckTitle.textContent = track.title;
+  deckTitle.style.color = '#ff3e3e';
   deckArtist.textContent = track.artist || 'Unknown Artist';
   deckCover.src = track.coverArtUrl || '/covers/default-vinyl.svg';
 
@@ -446,12 +448,15 @@ function updateQueueList(queue) {
     const cOut = (item.cueEnd ?? item.duration ?? 0).toFixed(1);
     const dur  = item.duration ? `${Math.floor(item.duration / 60)}:${String(Math.floor(item.duration % 60)).padStart(2, '0')}` : '—';
 
+    const isNextTrack = (index === 0);
+    const titleStyle = isNextTrack ? 'style="color: #00d2ff; font-weight: 600; text-shadow: 0 0 4px rgba(0,210,255,0.15);"' : '';
+
     el.innerHTML = `
       <span class="queue-grip" title="Drag to reorder" style="${isViewer ? 'display:none;' : ''}">⠿</span>
       <span class="queue-pos">${index + 1}</span>
       <img class="queue-cover" src="${item.coverArtUrl || '/covers/default-vinyl.svg'}" onerror="this.src='/covers/default-vinyl.svg'" alt="">
       <div class="queue-track-meta">
-        <div class="queue-track-title">${icon} ${item.title || 'Unknown'}</div>
+        <div class="queue-track-title" ${titleStyle}>${icon} ${item.title || 'Unknown'}</div>
         <div class="queue-track-artist">${item.artist || 'Unknown Artist'} · ${dur}</div>
       </div>
       <div class="queue-cue-group" title="Cue points (seconds)">
