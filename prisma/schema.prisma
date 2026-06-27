@@ -46,10 +46,13 @@ model Track {
 }
 
 model TrackCategory {
-  id          Int      @id @default(autoincrement())
-  name        String   @unique
+  id          Int             @id @default(autoincrement())
+  name        String          @unique
   description String?
-  tracks      Track[]  // many-to-many
+  parentId    Int?
+  parent      TrackCategory?  @relation("SubCategories", fields: [parentId], references: [id], onDelete: SetNull)
+  children    TrackCategory[] @relation("SubCategories")
+  tracks      Track[]         // many-to-many
 }
 
 model Playlist {

@@ -25,6 +25,7 @@ document.addEventListener('DOMContentLoaded', () => {
   setupNavigation();
   setupForms();
   setupUploadModal();
+  setupCategoryModal();
   setupTrackDrawer();
   setupAudioPlayer();
 
@@ -261,24 +262,51 @@ function renderLibraryFolders() {
   const container = document.getElementById('folder-container');
   container.innerHTML = '';
 
-  // "All Tracks" folder
-  const allCard = document.createElement('div');
-  allCard.className = `folder-card ${activeFolderId === null ? 'active' : ''}`;
-  allCard.innerHTML = `
-    <span class="folder-icon">📁</span>
-    <span class="folder-name">All Tracks</span>
-    <span class="folder-count">Library Root</span>
-  `;
-  allCard.addEventListener('click', () => {
-    activeFolderId = null;
-    document.getElementById('library-sub-title').textContent = 'All Music Tracks';
-    renderLibraryFolders();
-    loadLibraryTracks();
-  });
-  container.appendChild(allCard);
+  const activeCat = categoriesList.find(c => c.id === activeFolderId);
 
-  // Dynamic Category folders
-  categoriesList.forEach(cat => {
+  // If inside a sub-category, show "Go Up" folder card
+  if (activeFolderId !== null) {
+    const upCard = document.createElement('div');
+    upCard.className = 'folder-card';
+    upCard.innerHTML = `
+      <span class="folder-icon">↩️</span>
+      <span class="folder-name">Go Up</span>
+      <span class="folder-count">Back to parent</span>
+    `;
+    upCard.addEventListener('click', () => {
+      activeFolderId = activeCat ? activeCat.parentId : null;
+      if (activeFolderId === null) {
+        document.getElementById('library-sub-title').textContent = 'All Music Tracks';
+      } else {
+        const parentCat = categoriesList.find(c => c.id === activeFolderId);
+        document.getElementById('library-sub-title').textContent = `Tracks in category: ${parentCat ? parentCat.name : 'Folder'}`;
+      }
+      renderLibraryFolders();
+      loadLibraryTracks();
+    });
+    container.appendChild(upCard);
+  } else {
+    // We are at root: show "All Tracks" card
+    const allCard = document.createElement('div');
+    allCard.className = `folder-card ${activeFolderId === null ? 'active' : ''}`;
+    allCard.innerHTML = `
+      <span class="folder-icon">📁</span>
+      <span class="folder-name">All Tracks</span>
+      <span class="folder-count">Library Root</span>
+    `;
+    allCard.addEventListener('click', () => {
+      activeFolderId = null;
+      document.getElementById('library-sub-title').textContent = 'All Music Tracks';
+      renderLibraryFolders();
+      loadLibraryTracks();
+    });
+    container.appendChild(allCard);
+  }
+
+  // Filter categories list: only show items belonging to the current activeFolderId (sub-folders)
+  const subCategories = categoriesList.filter(cat => cat.parentId === activeFolderId);
+
+  subCategories.forEach(cat => {
     const card = document.createElement('div');
     card.className = `folder-card ${activeFolderId === cat.id ? 'active' : ''}`;
     card.innerHTML = `
@@ -350,9 +378,25 @@ function renderLibraryTracks() {
       </td>
     `;
 
-    // Wire up event listeners
-    tr.querySelector('.btn-edit-track').addEventListener('click', () => openEditDrawer(track));
-    tr.querySelector('.btn-delete-track').addEventListener('click', () => deleteTrack(track.id));
+    // Click anywhere on track row to select it and open the drawer
+    tr.style.cursor = 'pointer';
+    tr.addEventListener('click', (e) => {
+      if (e.target.closest('.control-btn')) return;
+      tbody.querySelectorAll('tr').forEach(r => r.classList.remove('selected-row'));
+      tr.classList.add('selected-row');
+      openEditDrawer(track);
+    });
+
+    tr.querySelector('.btn-edit-track').addEventListener('click', (e) => {
+      e.stopPropagation();
+      tbody.querySelectorAll('tr').forEach(r => r.classList.remove('selected-row'));
+      tr.classList.add('selected-row');
+      openEditDrawer(track);
+    });
+    tr.querySelector('.btn-delete-track').addEventListener('click', (e) => {
+      e.stopPropagation();
+      deleteTrack(track.id);
+    });
 
     tbody.appendChild(tr);
   });
@@ -466,6 +510,57 @@ function openEditDrawer(track) {
   document.getElementById('drawer-cover').src = `/covers/${track.fileHash}.jpg` || '/covers/default-vinyl.svg';
 
   drawer.classList.add('open');
+}
+
+// === CREATE CATEGORY/FOLDER MODAL ===
+function setupCategoryModal() {
+  const modal = document.getElementById('category-modal');
+  const triggerBtn = document.getElementById('btn-create-category');
+  const closeBtn = document.getElementById('btn-close-category');
+  const form = document.getElementById('category-form');
+  const parentSelect = document.getElementById('category-select-parent');
+
+  triggerBtn.addEventListener('click', () => {
+    // Populate parent selection list
+    parentSelect.innerHTML = '<option value="">Root / None</option>';
+    categoriesList.forEach(cat => {
+      parentSelect.innerHTML += `<option value="${cat.id}">${cat.name}</option>`;
+    });
+
+    // Default select currently active folder as parent
+    if (activeFolderId !== null) {
+      parentSelect.value = activeFolderId;
+    } else {
+      parentSelect.value = "";
+    }
+
+    modal.style.display = 'flex';
+  });
+
+  closeBtn.addEventListener('click', () => {
+    modal.style.display = 'none';
+  });
+
+  form.addEventListener('submit', (e) => {
+    e.preventDefault();
+    const name = document.getElementById('category-input-name').value;
+    const parentId = parentSelect.value;
+
+    apiFetch('/categories', {
+      method: 'POST',
+      body: {
+        name,
+        parentId: parentId ? parseInt(parentId) : null
+      }
+    })
+    .then(() => {
+      modal.style.display = 'none';
+      document.getElementById('category-input-name').value = '';
+      loadLibraryFolders();
+      alert('Folder created successfully!');
+    })
+    .catch(err => alert(err.message));
+  });
 }
 
 // === BULK UPLOAD MODAL & DROPZONE ===

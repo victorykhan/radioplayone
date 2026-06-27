@@ -395,3 +395,8 @@ body {
 .control-btn:hover {
   color: var(--primary-color);
 }
+
+.library-table tr.selected-row {
+  background: var(--primary-glow) !important;
+  box-shadow: inset 4px 0 0 var(--primary-color);
+}

@@ -36,7 +36,7 @@ router.get('/', authenticateJWT, async (req, res) => {
       settings.theme = {
         primary: '#00f0ff', // Cyan
         secondary: '#7000ff', // Purple
-        logoUrl: '/images/default-logo.png'
+        logoUrl: '/images/default-logo.svg'
       };
     }
     if (!settings.station_info) {
