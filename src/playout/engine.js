@@ -101,12 +101,32 @@ class PlayoutEngine {
 
   /**
    * Selects the next track based on scheduling and queue guidelines:
+   * 0. Check if there's a manually queued item (operator queue).
    * 1. Check if a scheduled playlist matches the current time block.
    * 2. Check if a playlist has tracks remaining in the queue.
    * 3. Select from Fallback Pool.
    * 4. Select random song from categories.
    */
   async fetchNextTrack() {
+    // Rule 0: Manual operator queue takes highest priority
+    const manualItem = playoutState.shiftQueue();
+    if (manualItem) {
+      logger.info('Queue: Playing manually queued track "%s" (queueId: %s)', manualItem.title, manualItem.queueId);
+      // Fetch full track from DB to ensure we have the latest data, then apply queue cue overrides
+      try {
+        const dbTrack = await prisma.track.findUnique({ where: { id: manualItem.trackId } });
+        if (dbTrack && !dbTrack.isDeleted) {
+          // Apply queue-level cue overrides if they differ from defaults
+          dbTrack.cueStart = manualItem.cueStart ?? dbTrack.cueStart;
+          dbTrack.cueEnd = manualItem.cueEnd ?? dbTrack.cueEnd;
+          dbTrack.volumeTrim = manualItem.volumeTrim ?? dbTrack.volumeTrim;
+          return dbTrack;
+        }
+      } catch (err) {
+        logger.warn('Queue: Failed to fetch queued track %s from DB: %s', manualItem.trackId, err.message);
+      }
+    }
+
     const now = new Date();
     const currentHourMinute = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
 

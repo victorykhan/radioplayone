@@ -114,10 +114,30 @@
           </div>
 
           <!-- PLAYOUT QUEUE -->
-          <div class="glass-card">
-            <h3 style="font-weight: 600; margin-bottom: 16px;">Playout Queue (Up Next)</h3>
-            <div id="studio-queue-list" style="display: flex; flex-direction: column; gap: 12px;">
-              <p style="color: var(--text-muted); font-size: 13px; text-align: center; padding: 20px 0;">Queue empty. AutoDJ will select fallback items.</p>
+          <div class="glass-card" style="max-height: 600px; display: flex; flex-direction: column;">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px; flex-shrink: 0;">
+              <h3 style="font-weight: 600;">Playout Queue (Up Next)</h3>
+              <div style="display: flex; gap: 8px;">
+                <button id="btn-queue-add" class="queue-action-btn" title="Add track to queue">＋ Add</button>
+                <button id="btn-queue-clear" class="queue-action-btn queue-action-danger" title="Clear entire queue">🗑 Clear</button>
+              </div>
+            </div>
+            <div id="studio-queue-list" class="queue-list-container">
+              <p class="queue-empty-msg">Queue empty — AutoDJ will select tracks automatically.</p>
+            </div>
+          </div>
+
+          <!-- ADD TO QUEUE MODAL -->
+          <div id="queue-add-modal" class="queue-modal-overlay">
+            <div class="glass-card" style="width: 500px; padding: 28px; max-height: 80vh; display: flex; flex-direction: column;">
+              <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px; flex-shrink: 0;">
+                <h3 style="font-weight: 600;">Add Track to Queue</h3>
+                <button class="drawer-close" id="btn-queue-add-close">✕</button>
+              </div>
+              <input type="text" id="queue-search-input" class="form-input" placeholder="🔍 Search by title or artist..." style="margin-bottom: 16px; flex-shrink: 0;">
+              <div id="queue-search-results" style="flex: 1; overflow-y: auto; display: flex; flex-direction: column; gap: 6px; min-height: 100px;">
+                <p style="color: var(--text-muted); font-size: 12px; text-align: center; padding: 20px;">Type to search your music library</p>
+              </div>
             </div>
           </div>
         </div>

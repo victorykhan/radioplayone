@@ -675,3 +675,249 @@ body {
 }
 .monitor-copy-btn:hover { background: rgba(0,240,255,0.08); }
 
+/* ═══════════════════════════════════════════════════════════════
+   PLAYOUT QUEUE — Drag & Drop, Clone, Cue Editing
+   ═══════════════════════════════════════════════════════════════ */
+
+/* Action buttons */
+.queue-action-btn {
+  padding: 5px 12px;
+  border-radius: 6px;
+  border: 1px solid var(--border-card);
+  background: rgba(255,255,255,0.04);
+  color: var(--primary-color);
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s;
+  white-space: nowrap;
+}
+.queue-action-btn:hover {
+  background: rgba(0,240,255,0.08);
+  border-color: var(--primary-color);
+}
+.queue-action-danger {
+  color: #ff5c5c;
+}
+.queue-action-danger:hover {
+  background: rgba(255,60,60,0.1);
+  border-color: #ff5c5c;
+}
+
+/* Queue list container */
+.queue-list-container {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  overflow-y: auto;
+  flex: 1;
+  min-height: 80px;
+  padding-right: 4px;
+}
+.queue-list-container::-webkit-scrollbar { width: 4px; }
+.queue-list-container::-webkit-scrollbar-track { background: transparent; }
+.queue-list-container::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.1); border-radius: 2px; }
+
+.queue-empty-msg {
+  color: var(--text-muted);
+  font-size: 13px;
+  text-align: center;
+  padding: 24px 0;
+}
+
+/* Individual queue item row */
+.queue-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 10px;
+  background: rgba(255,255,255,0.025);
+  border: 1px solid rgba(255,255,255,0.04);
+  border-radius: 8px;
+  cursor: grab;
+  transition: background 0.15s, border-color 0.15s, transform 0.15s, opacity 0.15s;
+  user-select: none;
+}
+.queue-item:hover {
+  background: rgba(255,255,255,0.05);
+  border-color: rgba(255,255,255,0.1);
+}
+.queue-item:active { cursor: grabbing; }
+
+/* Drag states */
+.queue-item.dragging {
+  opacity: 0.4;
+  transform: scale(0.97);
+  border-color: var(--primary-color);
+  background: rgba(0,240,255,0.05);
+}
+.queue-item.drag-over {
+  border-color: var(--primary-color);
+  box-shadow: 0 0 12px rgba(0,240,255,0.15);
+}
+
+/* Drag handle grip */
+.queue-grip {
+  font-size: 14px;
+  color: rgba(255,255,255,0.2);
+  cursor: grab;
+  flex-shrink: 0;
+  user-select: none;
+  padding: 0 2px;
+}
+.queue-grip:hover { color: rgba(255,255,255,0.5); }
+
+/* Queue item position badge */
+.queue-pos {
+  width: 22px; height: 22px;
+  border-radius: 50%;
+  background: rgba(255,255,255,0.05);
+  color: var(--text-muted);
+  font-size: 10px;
+  font-weight: 700;
+  display: flex; align-items: center; justify-content: center;
+  flex-shrink: 0;
+}
+
+/* Queue cover art thumbnail */
+.queue-cover {
+  width: 38px; height: 38px;
+  border-radius: 5px;
+  object-fit: cover;
+  flex-shrink: 0;
+  border: 1px solid var(--border-card);
+}
+
+/* Queue track info */
+.queue-track-meta {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.queue-track-title {
+  font-size: 13px;
+  font-weight: 600;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.queue-track-artist {
+  font-size: 11px;
+  color: var(--text-muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* Cue editor inline */
+.queue-cue-group {
+  display: flex;
+  gap: 4px;
+  align-items: center;
+  flex-shrink: 0;
+}
+.queue-cue-label {
+  font-size: 9px;
+  font-weight: 600;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+.queue-cue-input {
+  width: 52px;
+  padding: 3px 5px;
+  background: rgba(0,0,0,0.3);
+  border: 1px solid rgba(255,255,255,0.08);
+  border-radius: 4px;
+  color: var(--text-main);
+  font-size: 11px;
+  font-family: monospace;
+  text-align: center;
+  outline: none;
+  transition: border-color 0.2s;
+}
+.queue-cue-input:focus {
+  border-color: var(--primary-color);
+}
+
+/* Queue item action buttons (clone, remove) */
+.queue-item-actions {
+  display: flex;
+  gap: 4px;
+  flex-shrink: 0;
+  opacity: 0.4;
+  transition: opacity 0.2s;
+}
+.queue-item:hover .queue-item-actions { opacity: 1; }
+
+.queue-item-btn {
+  width: 26px; height: 26px;
+  border: 1px solid rgba(255,255,255,0.06);
+  background: rgba(255,255,255,0.03);
+  border-radius: 5px;
+  color: var(--text-muted);
+  font-size: 12px;
+  cursor: pointer;
+  display: flex; align-items: center; justify-content: center;
+  transition: all 0.15s;
+}
+.queue-item-btn:hover {
+  background: rgba(255,255,255,0.08);
+  color: var(--text-main);
+}
+.queue-item-btn.clone-btn:hover { color: var(--primary-color); }
+.queue-item-btn.remove-btn:hover { color: #ff5c5c; }
+
+/* Add to Queue Modal */
+.queue-modal-overlay {
+  display: none;
+  position: fixed;
+  top: 0; left: 0; width: 100%; height: 100%;
+  background: rgba(0,0,0,0.75);
+  z-index: 1001;
+  justify-content: center;
+  align-items: center;
+}
+.queue-modal-overlay.open {
+  display: flex;
+}
+
+/* Search result item in Add modal */
+.queue-search-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 10px;
+  background: rgba(255,255,255,0.03);
+  border: 1px solid rgba(255,255,255,0.04);
+  border-radius: 6px;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+.queue-search-item:hover {
+  background: rgba(0,240,255,0.06);
+  border-color: var(--primary-color);
+}
+.queue-search-item .search-cover {
+  width: 34px; height: 34px;
+  border-radius: 4px;
+  object-fit: cover;
+  flex-shrink: 0;
+}
+.queue-search-item .search-meta {
+  flex: 1; min-width: 0;
+}
+.queue-search-item .search-title {
+  font-size: 13px; font-weight: 600;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.queue-search-item .search-artist {
+  font-size: 11px; color: var(--text-muted);
+}
+.queue-search-item .search-add {
+  font-size: 11px; font-weight: 600;
+  color: var(--primary-color);
+  flex-shrink: 0;
+}

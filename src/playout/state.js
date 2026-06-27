@@ -1,11 +1,32 @@
 // Playout State Manager (Shared in-memory state)
+// Each queue item has a unique queueId for drag-reorder, clone, and removal.
+
+let _nextQueueId = 1;
+
+function assignQueueId(item) {
+  return {
+    queueId: _nextQueueId++,
+    trackId: item.id || item.trackId,
+    title: item.title,
+    artist: item.artist,
+    fileType: item.fileType,
+    duration: item.duration,
+    filePath: item.filePath,
+    fileHash: item.fileHash,
+    cueStart: item.cueStart ?? 0,
+    cueEnd: item.cueEnd ?? item.duration,
+    volumeTrim: item.volumeTrim ?? 1.0,
+    fadeDuration: item.fadeDuration ?? null
+  };
+}
+
 class PlayoutStateManager {
   constructor() {
     this.currentTrack = null;    // Active Track metadata model
     this.startedAt = null;       // DateTime timestamp when track started
     this.elapsedSeconds = 0;     // Current track progress in seconds
-    this.upcomingQueue = [];     // Array of upcoming track models
-    this.history = [];           // Recently played tracks (last 10)
+    this.upcomingQueue = [];     // Array of upcoming track models (with queueId)
+    this.history = [];           // Recently played tracks (last 20)
     this.playoutMode = 'AUTO';   // Playout Mode: AUTO, MANUAL, PLAYLIST
     this.activePlaylistId = null; // ID of currently executing playlist
   }
@@ -29,8 +50,115 @@ class PlayoutStateManager {
     this.elapsedSeconds = 0;
   }
 
+  /**
+   * Bulk-replace the queue (used by auto-populate).
+   * Assigns a unique queueId to each item.
+   */
   setUpcomingQueue(queue) {
-    this.upcomingQueue = queue;
+    this.upcomingQueue = (queue || []).map(item => {
+      // If item already has a queueId, keep it
+      if (item.queueId) return item;
+      return assignQueueId(item);
+    });
+  }
+
+  /**
+   * Add a single track to the queue at an optional position.
+   * Returns the new queue item with its queueId.
+   */
+  addToQueue(track, position) {
+    const item = assignQueueId(track);
+    if (position !== undefined && position !== null && position >= 0 && position < this.upcomingQueue.length) {
+      this.upcomingQueue.splice(position, 0, item);
+    } else {
+      this.upcomingQueue.push(item);
+    }
+    return item;
+  }
+
+  /**
+   * Remove a queue item by its queueId.
+   * Returns true if found and removed.
+   */
+  removeFromQueue(queueId) {
+    const idx = this.upcomingQueue.findIndex(i => i.queueId === queueId);
+    if (idx === -1) return false;
+    this.upcomingQueue.splice(idx, 1);
+    return true;
+  }
+
+  /**
+   * Reorder the queue based on an array of queueIds.
+   * Items not in the array are appended at the end.
+   */
+  reorderQueue(orderedQueueIds) {
+    const idMap = new Map(this.upcomingQueue.map(item => [item.queueId, item]));
+    const reordered = [];
+
+    for (const qid of orderedQueueIds) {
+      const item = idMap.get(qid);
+      if (item) {
+        reordered.push(item);
+        idMap.delete(qid);
+      }
+    }
+
+    // Append any items that weren't in the ordered list
+    for (const remaining of idMap.values()) {
+      reordered.push(remaining);
+    }
+
+    this.upcomingQueue = reordered;
+  }
+
+  /**
+   * Clone a queue item, inserting the duplicate immediately after the original.
+   * Returns the cloned item or null if not found.
+   */
+  cloneQueueItem(queueId) {
+    const idx = this.upcomingQueue.findIndex(i => i.queueId === queueId);
+    if (idx === -1) return null;
+
+    const original = this.upcomingQueue[idx];
+    const clone = {
+      queueId: _nextQueueId++,
+      trackId: original.trackId,
+      title: original.title,
+      artist: original.artist,
+      fileType: original.fileType,
+      duration: original.duration,
+      filePath: original.filePath,
+      fileHash: original.fileHash,
+      cueStart: original.cueStart,
+      cueEnd: original.cueEnd,
+      volumeTrim: original.volumeTrim,
+      fadeDuration: original.fadeDuration
+    };
+
+    this.upcomingQueue.splice(idx + 1, 0, clone);
+    return clone;
+  }
+
+  /**
+   * Update cue-in and cue-out points on a specific queue item.
+   * Returns true if found and updated.
+   */
+  updateQueueItemCues(queueId, { cueStart, cueEnd }) {
+    const item = this.upcomingQueue.find(i => i.queueId === queueId);
+    if (!item) return false;
+
+    if (cueStart !== undefined && cueStart !== null) item.cueStart = parseFloat(cueStart);
+    if (cueEnd !== undefined && cueEnd !== null) item.cueEnd = parseFloat(cueEnd);
+    return true;
+  }
+
+  /**
+   * Pop and return the first item from the queue (engine uses this to get next track).
+   * Returns null if queue is empty.
+   */
+  shiftQueue() {
+    if (this.upcomingQueue.length === 0) return null;
+    return this.upcomingQueue.shift();
   }
 
   setPlayoutMode(mode) {
@@ -39,7 +167,7 @@ class PlayoutStateManager {
 
   getNowPlaying() {
     if (!this.currentTrack) {
-      return { now_playing: null, up_next: this.upcomingQueue };
+      return { now_playing: null, up_next: this._serializeQueue() };
     }
 
     const elapsed = Math.round((new Date() - this.startedAt) / 1000);
@@ -51,17 +179,31 @@ class PlayoutStateManager {
         title: this.currentTrack.title,
         artist: this.currentTrack.artist,
         duration: this.currentTrack.duration,
+        fileType: this.currentTrack.fileType,
         started_at: this.startedAt,
         elapsed: Math.min(elapsed, Math.round(this.currentTrack.duration)),
         coverArtUrl: `/covers/${this.currentTrack.fileHash}.jpg`
       },
-      up_next: this.upcomingQueue.map(item => ({
-        id: item.id,
-        title: item.title,
-        artist: item.artist,
-        fileType: item.fileType
-      }))
+      up_next: this._serializeQueue()
     };
+  }
+
+  /**
+   * Serialize queue for API responses — includes all fields needed by the frontend.
+   */
+  _serializeQueue() {
+    return this.upcomingQueue.map((item, index) => ({
+      queueId: item.queueId,
+      position: index,
+      id: item.trackId,
+      title: item.title,
+      artist: item.artist,
+      fileType: item.fileType,
+      duration: item.duration,
+      cueStart: item.cueStart,
+      cueEnd: item.cueEnd,
+      coverArtUrl: item.fileHash ? `/covers/${item.fileHash}.jpg` : null
+    }));
   }
 }
 

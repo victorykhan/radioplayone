@@ -270,41 +270,244 @@ function updateQueueList(queue) {
   container.innerHTML = '';
 
   if (!queue || queue.length === 0) {
-    container.innerHTML = `<p style="color: var(--text-muted); font-size: 13px; text-align: center; padding: 20px 0;">Queue empty. AutoDJ will select fallback items.</p>`;
+    container.innerHTML = `<p class="queue-empty-msg">Queue empty — AutoDJ will select tracks automatically.</p>`;
     return;
   }
 
   queue.forEach((item, index) => {
-    const itemCard = document.createElement('div');
-    itemCard.className = 'folder-card';
-    itemCard.style.display = 'flex';
-    itemCard.style.alignItems = 'center';
-    itemCard.style.gap = '12px';
-    itemCard.style.padding = '10px 14px';
-    itemCard.style.textAlign = 'left';
-    
-    // Type icon
-    let icon = '🎵';
-    if (item.fileType === 'AD') icon = '💰';
-    if (item.fileType === 'JINGLE') icon = '🎤';
+    const el = document.createElement('div');
+    el.className = 'queue-item';
+    el.draggable = true;
+    el.dataset.queueId = item.queueId;
 
-    itemCard.innerHTML = `
-      <span style="font-size: 18px;">${icon}</span>
-      <div style="flex: 1;">
-        <div style="font-size: 13px; font-weight: 600;">${item.title}</div>
-        <div style="font-size: 11px; color: var(--text-muted);">${item.artist || 'Unknown Artist'}</div>
+    // Type icon
+    const icons = { SONG: '🎵', AD: '💰', JINGLE: '🎤', STATION_ID: '📻', FILLER: '🎵' };
+    const icon = icons[item.fileType] || '🎵';
+
+    // Format cue values
+    const cIn  = (item.cueStart ?? 0).toFixed(1);
+    const cOut = (item.cueEnd ?? item.duration ?? 0).toFixed(1);
+    const dur  = item.duration ? `${Math.floor(item.duration / 60)}:${String(Math.floor(item.duration % 60)).padStart(2, '0')}` : '—';
+
+    el.innerHTML = `
+      <span class="queue-grip" title="Drag to reorder">⠿</span>
+      <span class="queue-pos">${index + 1}</span>
+      <img class="queue-cover" src="${item.coverArtUrl || '/images/default-vinyl.svg'}" onerror="this.src='/images/default-vinyl.svg'" alt="">
+      <div class="queue-track-meta">
+        <div class="queue-track-title">${icon} ${item.title || 'Unknown'}</div>
+        <div class="queue-track-artist">${item.artist || 'Unknown Artist'} · ${dur}</div>
       </div>
-      <span style="font-size: 11px; color: var(--text-muted);">#${index + 1}</span>
+      <div class="queue-cue-group" title="Cue points (seconds)">
+        <span class="queue-cue-label">IN</span>
+        <input type="number" class="queue-cue-input cue-in" value="${cIn}" step="0.1" min="0" data-queue-id="${item.queueId}">
+        <span class="queue-cue-label">OUT</span>
+        <input type="number" class="queue-cue-input cue-out" value="${cOut}" step="0.1" min="0" data-queue-id="${item.queueId}">
+      </div>
+      <div class="queue-item-actions">
+        <button class="queue-item-btn clone-btn" title="Clone" data-queue-id="${item.queueId}">⧉</button>
+        <button class="queue-item-btn remove-btn" title="Remove" data-queue-id="${item.queueId}">✕</button>
+      </div>
     `;
-    container.appendChild(itemCard);
+    container.appendChild(el);
+  });
+
+  // ── Drag & Drop ──────────────────────────────────────────
+  let dragSrcEl = null;
+
+  container.querySelectorAll('.queue-item').forEach(item => {
+    item.addEventListener('dragstart', (e) => {
+      dragSrcEl = item;
+      item.classList.add('dragging');
+      e.dataTransfer.effectAllowed = 'move';
+      e.dataTransfer.setData('text/plain', item.dataset.queueId);
+    });
+
+    item.addEventListener('dragend', () => {
+      item.classList.remove('dragging');
+      container.querySelectorAll('.queue-item').forEach(i => i.classList.remove('drag-over'));
+    });
+
+    item.addEventListener('dragover', (e) => {
+      e.preventDefault();
+      e.dataTransfer.dropEffect = 'move';
+      if (item !== dragSrcEl) item.classList.add('drag-over');
+    });
+
+    item.addEventListener('dragleave', () => {
+      item.classList.remove('drag-over');
+    });
+
+    item.addEventListener('drop', (e) => {
+      e.preventDefault();
+      item.classList.remove('drag-over');
+      if (dragSrcEl === item) return;
+
+      // Reorder DOM immediately for instant feedback
+      const allItems = [...container.querySelectorAll('.queue-item')];
+      const fromIdx = allItems.indexOf(dragSrcEl);
+      const toIdx = allItems.indexOf(item);
+
+      if (fromIdx < toIdx) {
+        item.after(dragSrcEl);
+      } else {
+        item.before(dragSrcEl);
+      }
+
+      // Collect new order and send to API
+      const newOrder = [...container.querySelectorAll('.queue-item')].map(i => parseInt(i.dataset.queueId));
+      apiFetch('/queue/reorder', { method: 'POST', body: JSON.stringify({ order: newOrder }) })
+        .then(data => updateQueueList(data.queue))
+        .catch(err => {
+          showNotification('Failed to reorder queue: ' + err.message, 'error');
+          pollNowPlaying(); // Refresh from server on error
+        });
+    });
+  });
+
+  // ── Clone buttons ────────────────────────────────────────
+  container.querySelectorAll('.clone-btn').forEach(btn => {
+    btn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      const qid = btn.dataset.queueId;
+      apiFetch(`/queue/clone/${qid}`, { method: 'POST' })
+        .then(data => {
+          updateQueueList(data.queue);
+          showNotification('Track cloned in queue', 'success');
+        })
+        .catch(err => showNotification(err.message, 'error'));
+    });
+  });
+
+  // ── Remove buttons ───────────────────────────────────────
+  container.querySelectorAll('.remove-btn').forEach(btn => {
+    btn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      const qid = btn.dataset.queueId;
+      apiFetch(`/queue/${qid}`, { method: 'DELETE' })
+        .then(data => {
+          updateQueueList(data.queue);
+          showNotification('Track removed from queue', 'info');
+        })
+        .catch(err => showNotification(err.message, 'error'));
+    });
+  });
+
+  // ── Cue point editing (debounced) ────────────────────────
+  let cueDebounce = {};
+  container.querySelectorAll('.queue-cue-input').forEach(input => {
+    input.addEventListener('change', () => {
+      const qid = input.dataset.queueId;
+      const row = input.closest('.queue-item');
+      const cueIn  = parseFloat(row.querySelector('.cue-in').value);
+      const cueOut = parseFloat(row.querySelector('.cue-out').value);
+
+      clearTimeout(cueDebounce[qid]);
+      cueDebounce[qid] = setTimeout(() => {
+        apiFetch(`/queue/${qid}/cues`, {
+          method: 'PATCH',
+          body: JSON.stringify({ cueStart: cueIn, cueEnd: cueOut })
+        })
+        .then(() => showNotification('Cue points updated', 'success'))
+        .catch(err => showNotification(err.message, 'error'));
+      }, 500);
+    });
+
+    // Stop drag when clicking in input
+    input.addEventListener('mousedown', (e) => e.stopPropagation());
+    input.addEventListener('click', (e) => e.stopPropagation());
   });
 }
 
-// Skip Action
+// ── Skip Action (uses new queue API) ────────────────────────
 document.getElementById('btn-skip').addEventListener('click', () => {
-  apiFetch('/tracks/skip', { method: 'POST' })
-    .then(() => pollNowPlaying())
+  apiFetch('/queue/skip', { method: 'POST' })
+    .then(() => {
+      showNotification('Skipped to next track', 'success');
+      pollNowPlaying();
+    })
     .catch(err => showNotification(err.message, 'error'));
+});
+
+// ── Add to Queue Modal ──────────────────────────────────────
+(function initQueueAddModal() {
+  const modal     = document.getElementById('queue-add-modal');
+  const btnOpen   = document.getElementById('btn-queue-add');
+  const btnClose  = document.getElementById('btn-queue-add-close');
+  const searchIn  = document.getElementById('queue-search-input');
+  const results   = document.getElementById('queue-search-results');
+
+  if (!modal || !btnOpen) return;
+
+  btnOpen.addEventListener('click', () => {
+    modal.classList.add('open');
+    searchIn.value = '';
+    results.innerHTML = '<p style="color: var(--text-muted); font-size: 12px; text-align: center; padding: 20px;">Type to search your music library</p>';
+    setTimeout(() => searchIn.focus(), 100);
+  });
+
+  btnClose.addEventListener('click', () => modal.classList.remove('open'));
+  modal.addEventListener('click', (e) => { if (e.target === modal) modal.classList.remove('open'); });
+
+  let searchTimeout = null;
+  searchIn.addEventListener('input', () => {
+    clearTimeout(searchTimeout);
+    const q = searchIn.value.trim();
+    if (q.length < 2) {
+      results.innerHTML = '<p style="color: var(--text-muted); font-size: 12px; text-align: center; padding: 20px;">Type at least 2 characters to search</p>';
+      return;
+    }
+    searchTimeout = setTimeout(() => searchLibraryForQueue(q), 300);
+  });
+
+  function searchLibraryForQueue(query) {
+    apiFetch(`/tracks?search=${encodeURIComponent(query)}&limit=20&page=1`)
+      .then(data => {
+        const tracks = data.tracks || data;
+        results.innerHTML = '';
+        if (!tracks || tracks.length === 0) {
+          results.innerHTML = '<p style="color: var(--text-muted); font-size: 12px; text-align: center; padding: 20px;">No tracks found</p>';
+          return;
+        }
+        tracks.forEach(track => {
+          const dur = track.duration ? `${Math.floor(track.duration / 60)}:${String(Math.floor(track.duration % 60)).padStart(2, '0')}` : '';
+          const coverUrl = track.fileHash ? `/covers/${track.fileHash}.jpg` : '/images/default-vinyl.svg';
+          const row = document.createElement('div');
+          row.className = 'queue-search-item';
+          row.innerHTML = `
+            <img class="search-cover" src="${coverUrl}" onerror="this.src='/images/default-vinyl.svg'">
+            <div class="search-meta">
+              <div class="search-title">${track.title}</div>
+              <div class="search-artist">${track.artist || 'Unknown'} · ${dur}</div>
+            </div>
+            <span class="search-add">＋ Add</span>
+          `;
+          row.addEventListener('click', () => {
+            apiFetch('/queue/add', { method: 'POST', body: JSON.stringify({ trackId: track.id }) })
+              .then(data => {
+                updateQueueList(data.queue);
+                showNotification(`Added "${track.title}" to queue`, 'success');
+              })
+              .catch(err => showNotification(err.message, 'error'));
+          });
+          results.appendChild(row);
+        });
+      })
+      .catch(err => {
+        results.innerHTML = `<p style="color: #ff3c3c; font-size: 12px; text-align: center; padding: 20px;">Error: ${err.message}</p>`;
+      });
+  }
+})();
+
+// ── Clear Queue ─────────────────────────────────────────────
+document.getElementById('btn-queue-clear').addEventListener('click', () => {
+  showConfirm('Clear Queue', 'Remove all tracks from the playout queue? AutoDJ will take over.', () => {
+    apiFetch('/queue/clear', { method: 'POST' })
+      .then(() => {
+        updateQueueList([]);
+        showNotification('Queue cleared', 'success');
+      })
+      .catch(err => showNotification(err.message, 'error'));
+  });
 });
 
 // === MUSIC LIBRARY MANAGEMENT ===
