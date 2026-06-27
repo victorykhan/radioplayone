@@ -47,6 +47,37 @@ function showNotification(message, type = 'success') {
   }, 4000);
 }
 
+// Global Custom Confirm Modal Helper
+function showConfirm(title, message, onProceed) {
+  const modal = document.getElementById('confirm-modal');
+  if (!modal) {
+    if (confirm(message)) onProceed();
+    return;
+  }
+  
+  document.getElementById('confirm-title').textContent = title;
+  document.getElementById('confirm-message').textContent = message;
+  
+  modal.style.display = 'flex';
+  
+  const cancelBtn = document.getElementById('btn-confirm-cancel');
+  const proceedBtn = document.getElementById('btn-confirm-proceed');
+  
+  const closeConfirm = () => {
+    modal.style.display = 'none';
+    const newCancel = cancelBtn.cloneNode(true);
+    const newProceed = proceedBtn.cloneNode(true);
+    cancelBtn.parentNode.replaceChild(newCancel, cancelBtn);
+    proceedBtn.parentNode.replaceChild(newProceed, proceedBtn);
+  };
+  
+  document.getElementById('btn-confirm-cancel').addEventListener('click', closeConfirm);
+  document.getElementById('btn-confirm-proceed').addEventListener('click', () => {
+    onProceed();
+    closeConfirm();
+  });
+}
+
 // Document Ready
 document.addEventListener('DOMContentLoaded', () => {
   initAuth();
@@ -451,14 +482,19 @@ document.getElementById('library-search').addEventListener('input', () => {
 
 // Delete Track
 function deleteTrack(id) {
-  if (confirm('Are you sure you want to delete this track?')) {
-    apiFetch(`/tracks/${id}`, { method: 'DELETE' })
-      .then(() => {
-        loadLibraryTracks();
-        loadLibraryFolders();
-      })
-      .catch(err => showNotification(err.message, 'error'));
-  }
+  showConfirm(
+    'Delete Track',
+    'Are you sure you want to delete this track? This action is permanent.',
+    () => {
+      apiFetch(`/tracks/${id}`, { method: 'DELETE' })
+        .then(() => {
+          loadLibraryTracks();
+          loadLibraryFolders();
+          showNotification('Track deleted successfully.', 'success');
+        })
+        .catch(err => showNotification(err.message, 'error'));
+    }
+  );
 }
 
 // === TRACK EDIT DRAWER OVERRIDES ===
@@ -498,6 +534,10 @@ function setupTrackDrawer() {
     e.preventDefault();
     const id = document.getElementById('drawer-track-id').value;
     
+    // Gather selected categories
+    const checkedCategories = Array.from(document.querySelectorAll('input[name="drawer-categories"]:checked'))
+      .map(input => parseInt(input.value));
+
     const body = {
       title: document.getElementById('drawer-input-title').value,
       artist: document.getElementById('drawer-input-artist').value,
@@ -506,7 +546,8 @@ function setupTrackDrawer() {
       cueStart: document.getElementById('drawer-cue-start').value,
       cueEnd: document.getElementById('drawer-cue-end').value,
       volumeTrim: document.getElementById('drawer-vol-trim').value,
-      fadeDuration: document.getElementById('drawer-fade-duration').value || null
+      fadeDuration: document.getElementById('drawer-fade-duration').value || null,
+      categoryIds: checkedCategories
     };
 
     apiFetch(`/tracks/${id}`, {
@@ -516,6 +557,7 @@ function setupTrackDrawer() {
     .then(() => {
       drawer.classList.remove('open');
       loadLibraryTracks();
+      showNotification('Track overrides saved successfully!', 'success');
     })
     .catch(err => showNotification(err.message, 'error'));
   });
@@ -535,7 +577,26 @@ function openEditDrawer(track) {
   document.getElementById('drawer-vol-trim').value = track.volumeTrim || 1.0;
   document.getElementById('drawer-fade-duration').value = track.fadeDuration !== null ? track.fadeDuration : '';
 
-  document.getElementById('drawer-cover').src = `/covers/${track.fileHash}.jpg` || '/covers/default-vinyl.svg';
+  // If custom cover art URL is available, use it; otherwise fallback
+  document.getElementById('drawer-cover').src = track.coverArtUrl || `/covers/${track.fileHash}.jpg` || '/covers/default-vinyl.svg';
+
+  // Populate category checkboxes
+  const categoriesContainer = document.getElementById('drawer-categories-list');
+  categoriesContainer.innerHTML = '';
+  categoriesList.forEach(cat => {
+    const isChecked = track.categories && track.categories.some(c => c.id === cat.id);
+    const label = document.createElement('label');
+    label.style.display = 'flex';
+    label.style.alignItems = 'center';
+    label.style.gap = '8px';
+    label.style.cursor = 'pointer';
+    label.style.fontSize = '13px';
+    label.innerHTML = `
+      <input type="checkbox" name="drawer-categories" value="${cat.id}" ${isChecked ? 'checked' : ''}>
+      <span>${cat.name}</span>
+    `;
+    categoriesContainer.appendChild(label);
+  });
 
   drawer.classList.add('open');
 }
@@ -665,8 +726,14 @@ function handleBulkUpload(files) {
       const data = JSON.parse(xhr.responseText);
       progressText.textContent = `Completed! ${data.results.success.length} imported, ${data.results.skipped.length} duplicates skipped.`;
       progressBar.style.width = '100%';
+      if (data.results.success.length > 0) {
+        showNotification(`Successfully uploaded ${data.results.success.length} tracks.`, 'success');
+      } else {
+        showNotification(`Upload complete. No new tracks added (${data.results.skipped.length} duplicates skipped).`, 'warning');
+      }
     } else {
       progressText.textContent = 'Upload failed.';
+      showNotification('Bulk upload failed. Please try again.', 'error');
     }
   });
 
@@ -971,17 +1038,22 @@ document.getElementById('select-log-type').addEventListener('change', (e) => {
 });
 
 document.getElementById('btn-clear-logs').addEventListener('click', () => {
-  if (confirm(`Are you sure you want to clear all ${activeLogType} logs? This action is permanent.`)) {
-    const method = 'DELETE';
-    const url = activeLogType === 'activity' ? '/logs/activity' : '/logs/system';
-    
-    apiFetch(url, { method })
-      .then(() => {
-        loadLogs();
-        showNotification('Logs cleared successfully.', 'success');
-      })
-      .catch(err => showNotification(err.message, 'error'));
-  }
+  const typeLabel = activeLogType === 'activity' ? 'System Activity Logs' : 'Playout Server Logs';
+  showConfirm(
+    'Clear Logs',
+    `Are you sure you want to clear all ${typeLabel}? This action is permanent and cannot be undone.`,
+    () => {
+      const method = 'DELETE';
+      const url = activeLogType === 'activity' ? '/logs/activity' : '/logs/system';
+      
+      apiFetch(url, { method })
+        .then(() => {
+          loadLogs();
+          showNotification(`${typeLabel} cleared successfully.`, 'success');
+        })
+        .catch(err => showNotification(err.message, 'error'));
+    }
+  );
 });
 
 function loadLogs() {

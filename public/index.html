@@ -336,6 +336,12 @@
             <option value="FILLER">Filler</option>
           </select>
         </div>
+        <div class="form-group">
+          <label class="form-label">Folders / Categories</label>
+          <div id="drawer-categories-list" style="max-height: 120px; overflow-y: auto; background: rgba(0,0,0,0.2); padding: 10px; border-radius: 6px; border: 1px solid rgba(255,255,255,0.1); display: grid; grid-template-columns: 1fr; gap: 8px;">
+            <!-- Populated dynamically with checkboxes -->
+          </div>
+        </div>
         
         <hr style="border: 0; border-top: 1px solid rgba(255,255,255,0.08); margin: 20px 0;">
         <h4 style="font-size: 12px; color: var(--primary-color); font-weight: 600; text-transform: uppercase; margin-bottom: 12px;">Audio Cue Controls (Seconds)</h4>
@@ -428,6 +434,19 @@
         </div>
       </div>
     </footer>
+  </div>
+
+  <!-- CUSTOM CONFIRM MODAL -->
+  <div id="confirm-modal" style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.8); z-index: 10002; justify-content: center; align-items: center;">
+    <div class="glass-card" style="width: 400px; padding: 30px; text-align: center;">
+      <span style="font-size: 40px; display: block; margin-bottom: 16px;">⚠️</span>
+      <h3 id="confirm-title" style="font-weight: 600; margin-bottom: 12px; color: var(--text-main);">Confirm Action</h3>
+      <p id="confirm-message" style="font-size: 13px; color: var(--text-muted); margin-bottom: 24px;">Are you sure you want to proceed?</p>
+      <div style="display: flex; gap: 12px; justify-content: center;">
+        <button id="btn-confirm-cancel" class="form-input" style="width: auto; background: rgba(255,255,255,0.05); border-color: rgba(255,255,255,0.1); cursor: pointer; color: var(--text-main);">Cancel</button>
+        <button id="btn-confirm-proceed" class="form-input" style="width: auto; background: #ff3e3e; color: #fff; border: none; font-weight: 600; cursor: pointer;">Proceed</button>
+      </div>
+    </div>
   </div>
 
   <div id="toast-container"></div>

@@ -415,7 +415,7 @@ router.patch('/:id', authenticateJWT, requireRole(['ADMIN', 'PRODUCER', 'DJ']), 
   // Filter allowed fields to prevent arbitrary updates
   const allowedFields = [
     'title', 'artist', 'album', 'fileType', 'isExplicit',
-    'volumeTrim', 'cueStart', 'cueIntro', 'cueOutro', 'cueEnd', 'fadeDuration'
+    'volumeTrim', 'cueStart', 'cueIntro', 'cueOutro', 'cueEnd', 'fadeDuration', 'categoryIds'
   ];
 
   const filteredUpdates = {};
@@ -437,6 +437,12 @@ router.patch('/:id', authenticateJWT, requireRole(['ADMIN', 'PRODUCER', 'DJ']), 
           } else {
             filteredUpdates[field] = val;
           }
+        }
+      } else if (field === 'categoryIds') {
+        if (Array.isArray(updates[field])) {
+          filteredUpdates.categories = {
+            set: updates[field].map(id => ({ id: parseInt(id) }))
+          };
         }
       } else if (field === 'isExplicit') {
         filteredUpdates[field] = !!updates[field];
