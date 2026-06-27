@@ -30,7 +30,7 @@ router.get('/', authenticateJWT, async (req, res) => {
 });
 
 // 2. Create category
-router.post('/', authenticateJWT, requireRole(['ADMIN', 'PRODUCER']), async (req, res) => {
+router.post('/', authenticateJWT, requireRole(['ADMIN', 'PRODUCER', 'DJ']), async (req, res) => {
     const { name, description, parentId } = req.body;
   
     if (!name) {
@@ -67,7 +67,7 @@ router.post('/', authenticateJWT, requireRole(['ADMIN', 'PRODUCER']), async (req
 });
 
 // 3. Update category
-router.patch('/:id', authenticateJWT, requireRole(['ADMIN', 'PRODUCER']), async (req, res) => {
+router.patch('/:id', authenticateJWT, requireRole(['ADMIN', 'PRODUCER', 'DJ']), async (req, res) => {
     const catId = parseInt(req.params.id);
     const { name, description, parentId } = req.body;
   

@@ -188,6 +188,7 @@ router.post('/confirm', authenticateJWT, requireRole(['ADMIN', 'PRODUCER']), asy
         fileHash: audioData.fileHash,
         filePath: dest.relative,
         fileType: fileType || 'SONG',
+        coverArtUrl: coverArtUrl,
         volumeTrim: parseFloat(volumeTrim) || 1.0,
         cueStart: parseFloat(cueStart) || 0.0,
         cueEnd: parseFloat(cueEnd) || audioData.duration,
@@ -300,6 +301,7 @@ router.post('/bulk', authenticateJWT, requireRole(['ADMIN', 'PRODUCER']), upload
           fileHash: audioData.fileHash,
           filePath: dest.relative,
           fileType: 'SONG',
+          coverArtUrl: coverArtUrl,
           cueEnd: audioData.duration
         }
       });
@@ -407,7 +409,22 @@ router.patch('/:id', authenticateJWT, requireRole(['ADMIN', 'PRODUCER', 'DJ']), 
   for (const field of allowedFields) {
     if (updates[field] !== undefined) {
       if (['volumeTrim', 'cueStart', 'cueIntro', 'cueOutro', 'cueEnd', 'fadeDuration'].includes(field)) {
-        filteredUpdates[field] = updates[field] !== null ? parseFloat(updates[field]) : null;
+        if (updates[field] === '' || updates[field] === null || updates[field] === undefined) {
+          if (field === 'cueEnd') filteredUpdates[field] = originalTrack.duration;
+          else if (field === 'volumeTrim') filteredUpdates[field] = 1.0;
+          else if (field === 'fadeDuration') filteredUpdates[field] = null;
+          else filteredUpdates[field] = 0.0;
+        } else {
+          const val = parseFloat(updates[field]);
+          if (isNaN(val)) {
+            if (field === 'cueEnd') filteredUpdates[field] = originalTrack.duration;
+            else if (field === 'volumeTrim') filteredUpdates[field] = 1.0;
+            else if (field === 'fadeDuration') filteredUpdates[field] = null;
+            else filteredUpdates[field] = 0.0;
+          } else {
+            filteredUpdates[field] = val;
+          }
+        }
       } else if (field === 'isExplicit') {
         filteredUpdates[field] = !!updates[field];
       } else {
@@ -509,9 +526,16 @@ router.put('/:id/cover', authenticateJWT, requireRole(['ADMIN', 'PRODUCER']), up
     // Delete uploaded temp file
     fs.unlinkSync(req.file.path);
 
+    // Update database record
+    const coverUrl = `/covers/${track.fileHash}.jpg`;
+    await prisma.track.update({
+      where: { id: trackId },
+      data: { coverArtUrl: coverUrl }
+    });
+
     res.json({ 
       message: 'Cover art updated successfully', 
-      coverArtUrl: `/covers/${track.fileHash}.jpg` 
+      coverArtUrl: coverUrl 
     });
 
   } catch (error) {

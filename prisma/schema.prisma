@@ -26,6 +26,7 @@ model Track {
   fileHash     String             @unique // SHA256 of the audio file to dedup
   filePath     String             // path to the file on disk
   fileType     String             @default("SONG") // SONG, AD, JINGLE, STATION_ID, FILLER
+  coverArtUrl  String?
   isDeleted    Boolean            @default(false)
   createdAt    DateTime           @default(now())
   updatedAt    DateTime           @updatedAt
