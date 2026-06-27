@@ -131,13 +131,57 @@ class PlayoutEngine {
     const currentHourMinute = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
 
     try {
-      // Rule 1: Check for scheduled playlist
+      // Rule 0.5: If an active playlist is currently executing, fetch the next track
+      if (playoutState.activePlaylistId !== null) {
+        try {
+          const activePlaylist = await prisma.playlist.findUnique({
+            where: { id: playoutState.activePlaylistId },
+            include: {
+              tracks: {
+                orderBy: { position: 'asc' },
+                include: { track: true }
+              }
+            }
+          });
+
+          if (activePlaylist && activePlaylist.tracks.length > 0) {
+            const idx = playoutState.activePlaylistIndex;
+            if (idx >= 0 && idx < activePlaylist.tracks.length) {
+              const playlistTrack = activePlaylist.tracks[idx];
+              playoutState.activePlaylistIndex++;
+              logger.info('Scheduler selected track from active playlist "%s" [#%s]: %s', activePlaylist.name, idx + 1, playlistTrack.track.title);
+              return playlistTrack.track;
+            } else {
+              // Finished the playlist
+              if (activePlaylist.isLooping) {
+                playoutState.activePlaylistIndex = 1;
+                const playlistTrack = activePlaylist.tracks[0];
+                logger.info('Scheduler looped playlist "%s" back to start: %s', activePlaylist.name, playlistTrack.track.title);
+                return playlistTrack.track;
+              } else {
+                logger.info('Scheduler finished non-looping playlist "%s". Reverting to AutoDJ/Fallback.', activePlaylist.name);
+                playoutState.activePlaylistId = null;
+                playoutState.activePlaylistIndex = 0;
+                // Fall through to scheduled/fallback check
+              }
+            }
+          } else {
+            playoutState.activePlaylistId = null;
+            playoutState.activePlaylistIndex = 0;
+          }
+        } catch (err) {
+          logger.error('Scheduler failed during active playlist track retrieval: %s', err.message);
+          playoutState.activePlaylistId = null;
+          playoutState.activePlaylistIndex = 0;
+        }
+      }
+
+      // Rule 1: Check for scheduled playlist starting at the current minute
       const scheduledPlaylist = await prisma.playlist.findFirst({
         where: {
           isScheduled: true,
-          scheduleTime: { lte: currentHourMinute }
+          scheduleTime: currentHourMinute
         },
-        orderBy: { scheduleTime: 'desc' }, // closest scheduled
         include: {
           tracks: {
             orderBy: { position: 'asc' },
@@ -146,21 +190,13 @@ class PlayoutEngine {
         }
       });
 
-      if (scheduledPlaylist && scheduledPlaylist.tracks.length > 0) {
-        // Find if we have already played some tracks
-        // For simplicity: pop the first track in position order
-        const playlistTrack = scheduledPlaylist.tracks[0];
+      if (scheduledPlaylist && scheduledPlaylist.tracks.length > 0 && playoutState.lastScheduledTriggerTime !== currentHourMinute) {
+        playoutState.lastScheduledTriggerTime = currentHourMinute;
+        playoutState.activePlaylistId = scheduledPlaylist.id;
+        playoutState.activePlaylistIndex = 1;
         
-        // Remove track from playlist so it doesn't repeat immediately
-        await prisma.playlistTrack.delete({ where: { id: playlistTrack.id } });
-
-        // Update playlist duration
-        await prisma.playlist.update({
-          where: { id: scheduledPlaylist.id },
-          data: { duration: { decrement: playlistTrack.track.duration } }
-        });
-
-        logger.info('Scheduler selected track from playlist "%s": %s', scheduledPlaylist.name, playlistTrack.track.title);
+        const playlistTrack = scheduledPlaylist.tracks[0];
+        logger.info('Scheduler triggered scheduled playlist "%s" at %s: %s', scheduledPlaylist.name, currentHourMinute, playlistTrack.track.title);
         return playlistTrack.track;
       }
 

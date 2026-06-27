@@ -146,4 +146,54 @@ router.get('/me', authenticateJWT, (req, res) => {
   res.json({ user: req.user });
 });
 
+// 1. List all users (ADMIN only)
+router.get('/', authenticateJWT, requireRole(['ADMIN']), async (req, res) => {
+  try {
+    const users = await prisma.user.findMany({
+      select: {
+        id: true,
+        email: true,
+        role: true,
+        createdAt: true
+      },
+      orderBy: { id: 'asc' }
+    });
+    res.json(users);
+  } catch (error) {
+    logger.error('Failed to list users: %O', error);
+    res.status(500).json({ error: 'Failed to retrieve users directory' });
+  }
+});
+
+// 2. Delete a user (ADMIN only, prevents self-deletion)
+router.delete('/:id', authenticateJWT, requireRole(['ADMIN']), async (req, res) => {
+  const targetId = parseInt(req.params.id);
+
+  if (req.user.id === targetId) {
+    return res.status(400).json({ error: 'Access denied: You cannot delete your own administrative account' });
+  }
+
+  try {
+    const user = await prisma.user.findUnique({ where: { id: targetId } });
+    if (!user) {
+      return res.status(404).json({ error: 'User not found' });
+    }
+
+    await prisma.user.delete({ where: { id: targetId } });
+
+    await prisma.activityLog.create({
+      data: {
+        userId: req.user.id,
+        action: 'USER_DELETED',
+        details: `Deleted user: ${user.email} (Role: ${user.role})`
+      }
+    });
+
+    res.json({ message: 'User deleted successfully' });
+  } catch (error) {
+    logger.error('Failed to delete user: %O', error);
+    res.status(500).json({ error: 'Failed to delete user' });
+  }
+});
+
 export default router;

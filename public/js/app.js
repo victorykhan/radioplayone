@@ -122,11 +122,72 @@ function initAuth() {
 }
 
 function bootApp() {
+  enforceRbac();
   loadThemeSettings();
   pollNowPlaying();
   loadLibraryFolders();
   loadLibraryTracks();
   loadAnalytics();
+  if (currentUser && currentUser.role === 'ADMIN') {
+    loadSettingsUsers();
+  }
+}
+
+function enforceRbac() {
+  if (!currentUser) return;
+  const role = currentUser.role;
+
+  // 1. Sidebar Nav Visibility
+  document.querySelectorAll('.nav-item[data-view]').forEach(item => {
+    const view = item.getAttribute('data-view');
+    item.style.display = 'block';
+
+    if (role === 'PRODUCER') {
+      if (view === 'settings' || view === 'system') item.style.display = 'none';
+    } else if (role === 'DJ') {
+      if (view === 'settings' || view === 'system' || view === 'logs' || view === 'analytics') {
+        item.style.display = 'none';
+      }
+    } else if (role === 'VIEWER') {
+      if (view === 'settings' || view === 'system' || view === 'logs' || view === 'analytics') {
+        item.style.display = 'none';
+      }
+    }
+  });
+
+  // 2. Settings User management visibility
+  const userMgmtCard = document.getElementById('settings-user-mgmt-card');
+  if (userMgmtCard) {
+    userMgmtCard.style.display = (role === 'ADMIN') ? 'block' : 'none';
+  }
+
+  // 3. Ext-admin link (Nginx proxy)
+  const icecastAdminLink = document.querySelector('.monitor-ext-admin');
+  if (icecastAdminLink) {
+    icecastAdminLink.style.display = (role === 'ADMIN' || role === 'PRODUCER') ? 'inline-block' : 'none';
+  }
+
+  // 4. Playout Skip track button
+  const skipBtn = document.getElementById('btn-skip');
+  if (skipBtn) {
+    skipBtn.style.display = (role !== 'VIEWER') ? 'flex' : 'none';
+  }
+
+  // 5. Playout Queue Add & Clear buttons
+  const qAddBtn = document.getElementById('btn-queue-add');
+  const qClearBtn = document.getElementById('btn-queue-clear');
+  if (qAddBtn) qAddBtn.style.display = (role !== 'VIEWER') ? 'inline-block' : 'none';
+  if (qClearBtn) qClearBtn.style.display = (role !== 'VIEWER') ? 'inline-block' : 'none';
+
+  // 6. Tracks upload & category create buttons
+  const uploadTrackBtn = document.getElementById('btn-upload-track');
+  const createFolderBtn = document.getElementById('btn-create-folder');
+  if (uploadTrackBtn) uploadTrackBtn.style.display = (role === 'ADMIN' || role === 'PRODUCER') ? 'inline-block' : 'none';
+  if (createFolderBtn) createFolderBtn.style.display = (role === 'ADMIN' || role === 'PRODUCER') ? 'inline-block' : 'none';
+
+  // 7. Playlist create button
+  const createPlaylistBtn = document.getElementById('btn-create-playlist');
+  if (createPlaylistBtn) createPlaylistBtn.style.display = (role === 'ADMIN' || role === 'PRODUCER') ? 'inline-block' : 'none';
 }
 
 function logout() {
@@ -280,11 +341,14 @@ function updateQueueList(queue) {
     return;
   }
 
+  const isViewer = (currentUser && currentUser.role === 'VIEWER');
+
   queue.forEach((item, index) => {
     const el = document.createElement('div');
     el.className = 'queue-item';
-    el.draggable = true;
+    el.draggable = !isViewer;
     el.dataset.queueId = item.queueId;
+    if (isViewer) el.style.cursor = 'default';
 
     // Type icon
     const icons = { SONG: '🎵', AD: '💰', JINGLE: '🎤', STATION_ID: '📻', FILLER: '🎵' };
@@ -296,7 +360,7 @@ function updateQueueList(queue) {
     const dur  = item.duration ? `${Math.floor(item.duration / 60)}:${String(Math.floor(item.duration % 60)).padStart(2, '0')}` : '—';
 
     el.innerHTML = `
-      <span class="queue-grip" title="Drag to reorder">⠿</span>
+      <span class="queue-grip" title="Drag to reorder" style="${isViewer ? 'display:none;' : ''}">⠿</span>
       <span class="queue-pos">${index + 1}</span>
       <img class="queue-cover" src="${item.coverArtUrl || '/covers/default-vinyl.svg'}" onerror="this.src='/covers/default-vinyl.svg'" alt="">
       <div class="queue-track-meta">
@@ -305,11 +369,11 @@ function updateQueueList(queue) {
       </div>
       <div class="queue-cue-group" title="Cue points (seconds)">
         <span class="queue-cue-label">IN</span>
-        <input type="number" class="queue-cue-input cue-in" value="${cIn}" step="0.1" min="0" data-queue-id="${item.queueId}">
+        <input type="number" class="queue-cue-input cue-in" value="${cIn}" step="0.1" min="0" data-queue-id="${item.queueId}" ${isViewer ? 'disabled' : ''}>
         <span class="queue-cue-label">OUT</span>
-        <input type="number" class="queue-cue-input cue-out" value="${cOut}" step="0.1" min="0" data-queue-id="${item.queueId}">
+        <input type="number" class="queue-cue-input cue-out" value="${cOut}" step="0.1" min="0" data-queue-id="${item.queueId}" ${isViewer ? 'disabled' : ''}>
       </div>
-      <div class="queue-item-actions">
+      <div class="queue-item-actions" style="${isViewer ? 'display:none;' : ''}">
         <button class="queue-item-btn clone-btn" title="Clone" data-queue-id="${item.queueId}">⧉</button>
         <button class="queue-item-btn remove-btn" title="Remove" data-queue-id="${item.queueId}">✕</button>
       </div>
@@ -2188,3 +2252,78 @@ function drawSystemSparkline(canvasId, history, color) {
   ctx.lineWidth = 1.5 * dpr;
   ctx.stroke();
 }
+
+
+// ═══════════════════════════════════════════════════════════════
+// USER DIRECTORY & MANAGEMENT CONTROLLER
+// ═══════════════════════════════════════════════════════════════
+function loadSettingsUsers() {
+  if (!currentUser || currentUser.role !== 'ADMIN') return;
+
+  apiFetch('/auth')
+    .then(users => {
+      const tbody = document.getElementById('settings-users-list');
+      if (!tbody) return;
+      tbody.innerHTML = '';
+
+      users.forEach(user => {
+        const tr = document.createElement('tr');
+        const isSelf = user.id === currentUser.id;
+
+        tr.innerHTML = `
+          <td style="font-weight:600; padding: 10px 0; border-bottom: 1px solid rgba(255,255,255,0.04);">${user.email} ${isSelf ? '<span class="live-pill" style="font-size:9px; background:rgba(0,240,255,0.1); border-color:rgba(0,240,255,0.3); color:var(--primary-color); margin-left:6px; padding:1px 6px;">YOU</span>' : ''}</td>
+          <td style="padding: 10px 0; border-bottom: 1px solid rgba(255,255,255,0.04);">
+            <span class="live-pill" style="font-size:10px; background:rgba(255,255,255,0.05); border-color:rgba(255,255,255,0.1); color:var(--text-main); padding:2px 8px;">
+              ${user.role}
+            </span>
+          </td>
+          <td style="text-align: right; padding: 10px 14px 10px 0; border-bottom: 1px solid rgba(255,255,255,0.04);">
+            ${isSelf ? '' : `<button class="queue-item-btn remove-btn user-delete-btn" data-id="${user.id}" title="Delete User">✕</button>`}
+          </td>
+        `;
+        tbody.appendChild(tr);
+      });
+
+      // Bind delete buttons
+      tbody.querySelectorAll('.user-delete-btn').forEach(btn => {
+        btn.addEventListener('click', (e) => {
+          e.stopPropagation();
+          const userId = btn.dataset.id;
+          showConfirm('Delete User Account', 'Are you sure you want to permanently delete this user from the system?', () => {
+            apiFetch(`/auth/${userId}`, { method: 'DELETE' })
+              .then(() => {
+                loadSettingsUsers();
+                showNotification('User account deleted successfully', 'success');
+              })
+              .catch(err => showNotification(err.message, 'error'));
+          });
+        });
+      });
+    })
+    .catch(err => console.error('Failed to load users directory:', err));
+}
+
+// Register form submission listener
+(function initUserMgmtForm() {
+  const form = document.getElementById('settings-create-user-form');
+  if (!form) return;
+
+  form.addEventListener('submit', (e) => {
+    e.preventDefault();
+    const email = document.getElementById('new-user-email').value;
+    const password = document.getElementById('new-user-password').value;
+    const role = document.getElementById('new-user-role').value;
+
+    apiFetch('/auth/register', {
+      method: 'POST',
+      body: { email, password, role }
+    })
+    .then(() => {
+      document.getElementById('new-user-email').value = '';
+      document.getElementById('new-user-password').value = '';
+      loadSettingsUsers();
+      showNotification('User account registered successfully', 'success');
+    })
+    .catch(err => showNotification(err.message, 'error'));
+  });
+})();

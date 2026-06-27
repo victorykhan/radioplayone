@@ -29,6 +29,8 @@ class PlayoutStateManager {
     this.history = [];           // Recently played tracks (last 20)
     this.playoutMode = 'AUTO';   // Playout Mode: AUTO, MANUAL, PLAYLIST
     this.activePlaylistId = null; // ID of currently executing playlist
+    this.activePlaylistIndex = 0; // Current track position in active playlist
+    this.lastScheduledTriggerTime = null; // HH:MM of last triggered scheduled playlist
   }
 
   setCurrentTrack(track) {

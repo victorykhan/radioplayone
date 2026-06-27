@@ -21,8 +21,9 @@ import logRoutes from './routes/logs.js';
 import queueRoutes from './routes/queue.js';
 import systemRoutes from './routes/system.js';
 
-// Playout Engine Import
+// Playout Engine & Background Sync Imports
 import playoutEngine from './playout/engine.js';
+import { startListenerSync } from './playout/listenerSync.js';
 
 dotenv.config();
 
@@ -154,6 +155,7 @@ const startServer = async () => {
     if (process.env.START_PLAYOUT_ON_BOOT !== 'false') {
       await playoutEngine.start();
       logger.info('Playout Engine started successfully.');
+      startListenerSync();
     } else {
       logger.warn('Playout Engine disabled on boot via environment setting.');
     }
