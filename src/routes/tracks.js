@@ -464,11 +464,12 @@ router.patch('/:id', authenticateJWT, requireRole(['ADMIN', 'PRODUCER', 'DJ']), 
     });
 
     // Create Audit Log
+    const logDetails = `Updated track ${trackId} metadata. Modified: ${Object.keys(filteredUpdates).join(', ')}`;
     await prisma.activityLog.create({
       data: {
         userId: req.user.id,
         action: 'TRACK_UPDATED',
-        details: `Updated metadata for track ${trackId}: ${JSON.stringify(filteredUpdates)}`
+        details: logDetails.substring(0, 250)
       }
     });
 
