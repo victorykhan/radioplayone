@@ -370,6 +370,22 @@
               <span style="display: inline-block; width: 8px; height: 8px; background: #00ff66; border-radius: 50%; box-shadow: 0 0 8px #00ff66;"></span>
               <span style="font-weight: 600; color: #00ff66;">Playout Stream Connected</span>
             </div>
+
+            <div style="margin-top: 20px; border-top: 1px solid rgba(255,255,255,0.08); padding-top: 20px;">
+              <h4 style="color: var(--primary-color); font-weight: 600; font-size: 11px; text-transform: uppercase; margin-bottom: 12px; letter-spacing: 0.5px;">External & Mobile Stream Integration</h4>
+              
+              <div class="form-group" style="margin-bottom: 16px;">
+                <label class="form-label" style="font-size: 11px;">Direct Audio Stream URL (for apps or directories)</label>
+                <input type="text" readonly value="https://play.vawam.ca/stream" class="form-input" style="background: rgba(0,0,0,0.3); font-family: monospace; font-size: 12px; cursor: text;" onclick="this.select();">
+                <span style="font-size: 10px; color: var(--text-muted); margin-top: 4px; display: block;">Use this link in custom players, TuneIn directories, or mobile streaming apps (supports MP3 / AAC).</span>
+              </div>
+              
+              <div class="form-group" style="margin-bottom: 0;">
+                <label class="form-label" style="font-size: 11px;">Public Website Player Embed Code (iframe)</label>
+                <textarea readonly class="form-input" style="background: rgba(0,0,0,0.3); font-family: monospace; font-size: 11px; height: 50px; resize: none; cursor: text;" onclick="this.select();"><iframe src="https://play.vawam.ca/embed.html" width="100%" height="110" style="border: none; border-radius: 12px; background: transparent;" scrolling="no"></iframe></textarea>
+                <span style="font-size: 10px; color: var(--text-muted); margin-top: 4px; display: block;">Copy and paste this HTML snippet into any public CMS, WordPress, Webflow, or custom site builder.</span>
+              </div>
+            </div>
           </div>
         </div>
       </section>

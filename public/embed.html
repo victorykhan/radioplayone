@@ -1,0 +1,341 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>RadioPlay One Embed Player</title>
+  <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --primary-color: #00f0ff;
+      --secondary-color: #7000ff;
+      --bg-dark: #0d101f;
+      --text-main: #ffffff;
+      --text-muted: #8e9bb3;
+    }
+    
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    body {
+      font-family: 'Outfit', sans-serif;
+      background: transparent;
+      color: var(--text-main);
+      overflow: hidden;
+      display: flex;
+      align-items: center;
+      height: 100vh;
+      width: 100vw;
+    }
+
+    .player-widget {
+      width: 100%;
+      height: 100%;
+      background: rgba(13, 16, 31, 0.75);
+      backdrop-filter: blur(16px);
+      border: 1px solid rgba(255, 255, 255, 0.08);
+      border-radius: 12px;
+      padding: 16px 20px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 16px;
+      box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4);
+      position: relative;
+    }
+
+    .album-art-wrap {
+      position: relative;
+      width: 76px;
+      height: 76px;
+      flex-shrink: 0;
+    }
+
+    .album-art {
+      width: 100%;
+      height: 100%;
+      border-radius: 50%;
+      object-fit: cover;
+      border: 2px solid rgba(255, 255, 255, 0.1);
+      box-shadow: 0 0 15px rgba(0,0,0,0.3);
+      transition: transform 0.5s ease;
+    }
+
+    .album-art.playing {
+      animation: rotateVinyl 12s linear infinite;
+    }
+
+    .vinyl-hole {
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      width: 16px;
+      height: 16px;
+      background: var(--bg-dark);
+      border: 2px solid rgba(255, 255, 255, 0.2);
+      border-radius: 50%;
+    }
+
+    .meta-controls-container {
+      display: flex;
+      align-items: center;
+      flex-grow: 1;
+      gap: 16px;
+      min-width: 0;
+    }
+
+    .track-meta {
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+      min-width: 0;
+      flex-grow: 1;
+    }
+
+    .track-title {
+      font-size: 15px;
+      font-weight: 600;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      color: var(--text-main);
+    }
+
+    .track-artist {
+      font-size: 13px;
+      color: var(--text-muted);
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    .controls {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      flex-shrink: 0;
+    }
+
+    .play-btn {
+      width: 44px;
+      height: 44px;
+      background: var(--primary-color);
+      color: #000;
+      border: none;
+      border-radius: 50%;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 18px;
+      transition: all 0.2s ease;
+      box-shadow: 0 0 15px rgba(0, 240, 255, 0.35);
+    }
+
+    .play-btn:hover {
+      transform: scale(1.05);
+      box-shadow: 0 0 20px rgba(0, 240, 255, 0.5);
+    }
+
+    .volume-container {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .vol-icon {
+      font-size: 14px;
+      color: var(--text-muted);
+    }
+
+    .volume-slider {
+      width: 70px;
+      height: 4px;
+      background: rgba(255, 255, 255, 0.1);
+      border-radius: 2px;
+      cursor: pointer;
+      appearance: none;
+      outline: none;
+    }
+
+    .volume-slider::-webkit-slider-thumb {
+      appearance: none;
+      width: 10px;
+      height: 10px;
+      border-radius: 50%;
+      background: var(--primary-color);
+      cursor: pointer;
+    }
+
+    /* Animated equalizer visualizer */
+    .visualizer {
+      display: flex;
+      align-items: flex-end;
+      gap: 3px;
+      height: 24px;
+      position: absolute;
+      right: 20px;
+      top: 12px;
+    }
+
+    .bar {
+      width: 3px;
+      background: var(--primary-color);
+      border-radius: 2px;
+      height: 2px;
+      transition: height 0.1s ease;
+    }
+
+    .playing .bar {
+      animation: bounce 0.8s ease infinite alternate;
+    }
+
+    .playing .bar:nth-child(2) { animation-delay: 0.15s; }
+    .playing .bar:nth-child(3) { animation-delay: 0.3s; }
+    .playing .bar:nth-child(4) { animation-delay: 0.45s; }
+
+    @keyframes rotateVinyl {
+      from { transform: rotate(0deg); }
+      to { transform: rotate(360deg); }
+    }
+
+    @keyframes bounce {
+      0% { height: 2px; }
+      100% { height: 100%; }
+    }
+
+    @media (max-width: 480px) {
+      .player-widget {
+        padding: 12px 14px;
+      }
+      .album-art-wrap {
+        width: 60px;
+        height: 60px;
+      }
+      .volume-container {
+        display: none;
+      }
+    }
+  </style>
+</head>
+<body>
+
+  <div class="player-widget" id="player-container">
+    <div class="album-art-wrap">
+      <img id="player-cover" src="/covers/default-vinyl.png" class="album-art" alt="Cover Art">
+      <div class="vinyl-hole"></div>
+    </div>
+    
+    <div class="meta-controls-container">
+      <div class="track-meta">
+        <div id="player-title" class="track-title">Station Live Stream</div>
+        <div id="player-artist" class="track-artist">Loading Stream Info...</div>
+      </div>
+      
+      <div class="controls">
+        <div class="volume-container">
+          <span class="vol-icon">🔊</span>
+          <input type="range" id="volume-control" class="volume-slider" min="0" max="1" step="0.05" value="0.8">
+        </div>
+        <button id="btn-play" class="play-btn">▶️</button>
+      </div>
+    </div>
+
+    <!-- Visual Equalizer -->
+    <div class="visualizer" id="equalizer">
+      <div class="bar"></div>
+      <div class="bar"></div>
+      <div class="bar"></div>
+      <div class="bar"></div>
+    </div>
+  </div>
+
+  <script>
+    const API_BASE = '/api';
+    const STREAM_URL = '/stream';
+    let audioNode = null;
+    let isPlaying = false;
+
+    const playBtn = document.getElementById('btn-play');
+    const volumeSlider = document.getElementById('volume-control');
+    const coverArt = document.getElementById('player-cover');
+    const equalizer = document.getElementById('equalizer');
+    const titleText = document.getElementById('player-title');
+    const artistText = document.getElementById('player-artist');
+
+    // Setup Custom Colors if parent passes theme parameters
+    const urlParams = new URLSearchParams(window.location.search);
+    const customPrimary = urlParams.get('primary');
+    if (customPrimary) {
+      document.documentElement.style.setProperty('--primary-color', '#' + customPrimary);
+    }
+    
+    function togglePlay() {
+      if (isPlaying) {
+        audioNode.pause();
+        audioNode = null;
+        isPlaying = false;
+        playBtn.textContent = '▶️';
+        coverArt.classList.remove('playing');
+        equalizer.classList.remove('playing');
+      } else {
+        playBtn.textContent = '⏳';
+        audioNode = new Audio(`${STREAM_URL}?cb=${Date.now()}`);
+        audioNode.volume = volumeSlider.value;
+        
+        audioNode.play()
+          .then(() => {
+            isPlaying = true;
+            playBtn.textContent = '⏸️';
+            coverArt.classList.add('playing');
+            equalizer.classList.add('playing');
+          })
+          .catch(err => {
+            console.error('Playout stream initiation failed:', err);
+            playBtn.textContent = '▶️';
+          });
+      }
+    }
+
+    playBtn.addEventListener('click', togglePlay);
+
+    volumeSlider.addEventListener('input', () => {
+      if (audioNode) {
+        audioNode.volume = volumeSlider.value;
+      }
+    });
+
+    // Fetch Now Playing info
+    function updateNowPlaying() {
+      fetch(`${API_BASE}/public/now-playing`)
+        .then(res => res.json())
+        .then(data => {
+          if (data && data.title) {
+            titleText.textContent = data.title;
+            artistText.textContent = data.artist || 'Unknown Artist';
+            if (data.coverArtUrl) {
+              coverArt.src = data.coverArtUrl;
+            } else {
+              coverArt.src = '/covers/default-vinyl.png';
+            }
+          } else {
+            titleText.textContent = 'Station Live Stream';
+            artistText.textContent = 'Automated Playout Feed';
+            coverArt.src = '/covers/default-vinyl.png';
+          }
+        })
+        .catch(err => {
+          console.warn('Could not retrieve now playing feed:', err);
+        });
+    }
+
+    // Initial load and set interval
+    updateNowPlaying();
+    setInterval(updateNowPlaying, 5000);
+  </script>
+</body>
+</html>
