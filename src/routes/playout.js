@@ -76,7 +76,7 @@ router.post('/connect', authenticateJWT, requireRole(['ADMIN', 'PRODUCER']), asy
   }
 });
 
-// Manually Load and Play single Track in Active Deck instantly (Admin/Producer/DJ)
+// Manually Load Track into Playout Queue (Up Next) (Admin/Producer/DJ)
 router.post('/load-track', authenticateJWT, requireRole(['ADMIN', 'PRODUCER', 'DJ']), async (req, res) => {
   const { trackId } = req.body;
   if (!trackId) return res.status(400).json({ error: 'trackId is required' });
@@ -87,31 +87,16 @@ router.post('/load-track', authenticateJWT, requireRole(['ADMIN', 'PRODUCER', 'D
       return res.status(404).json({ error: 'Track not found or deleted' });
     }
 
-    if (playoutEngine.playoutTimeout) {
-      clearTimeout(playoutEngine.playoutTimeout);
-      playoutEngine.playoutTimeout = null;
-    }
-    if (playoutEngine.currentDecoder) {
-      playoutEngine.currentDecoder.kill();
-      playoutEngine.currentDecoder = null;
-    }
-
-    playoutState.isStopped = false;
-    playoutState.isPaused = false;
-    playoutState.pausedElapsed = 0;
-
-    playoutState.activePlaylistId = null;
-    playoutState.activePlaylistIndex = 0;
-
-    playoutEngine.play(track);
-    res.json({ message: `Manually loaded track "${track.title}" into playout deck` });
+    // Append track to playout manual queue
+    playoutState.addToQueue(track);
+    res.json({ message: `Queued track "${track.title}" in Up Next successfully` });
   } catch (error) {
-    logger.error('Failed to manually load track: %O', error);
-    res.status(500).json({ error: 'Failed to load track into deck' });
+    logger.error('Failed to manually queue track: %O', error);
+    res.status(500).json({ error: 'Failed to queue track' });
   }
 });
 
-// Manually Load and Start Playlist rotation instantly (Admin/Producer/DJ)
+// Manually Load Playlist into Playout Queue (Up Next) (Admin/Producer/DJ)
 router.post('/load-playlist', authenticateJWT, requireRole(['ADMIN', 'PRODUCER', 'DJ']), async (req, res) => {
   const { playlistId } = req.body;
   if (!playlistId) return res.status(400).json({ error: 'playlistId is required' });
@@ -135,29 +120,17 @@ router.post('/load-playlist', authenticateJWT, requireRole(['ADMIN', 'PRODUCER',
       return res.status(400).json({ error: 'Selected playlist is empty' });
     }
 
-    if (playoutEngine.playoutTimeout) {
-      clearTimeout(playoutEngine.playoutTimeout);
-      playoutEngine.playoutTimeout = null;
-    }
-    if (playoutEngine.currentDecoder) {
-      playoutEngine.currentDecoder.kill();
-      playoutEngine.currentDecoder = null;
-    }
+    // Append all tracks of playlist sequentially to playout manual queue
+    playlist.tracks.forEach(pt => {
+      if (pt.track && !pt.track.isDeleted) {
+        playoutState.addToQueue(pt.track);
+      }
+    });
 
-    playoutState.isStopped = false;
-    playoutState.isPaused = false;
-    playoutState.pausedElapsed = 0;
-
-    playoutState.activePlaylistId = playlist.id;
-    playoutState.activePlaylistIndex = 0;
-    
-    const firstPlaylistTrack = playlist.tracks[0].track;
-    playoutEngine.play(firstPlaylistTrack);
-
-    res.json({ message: `Manually loaded playlist "${playlist.name}" into deck` });
+    res.json({ message: `Queued playlist "${playlist.name}" (${playlist.tracks.length} tracks) in Up Next` });
   } catch (error) {
-    logger.error('Failed to manually load playlist: %O', error);
-    res.status(500).json({ error: 'Failed to load playlist into deck' });
+    logger.error('Failed to manually queue playlist: %O', error);
+    res.status(500).json({ error: 'Failed to queue playlist' });
   }
 });
 

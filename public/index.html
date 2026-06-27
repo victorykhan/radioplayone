@@ -151,21 +151,34 @@
                 </div>
               </div>
 
-              <!-- Direct Manual Deck Loader Sub-panel -->
+              <!-- Live Stream Monitor Control (moved from bottom player) -->
+              <div style="display: flex; align-items: center; gap: 10px; margin-top: 15px; background: rgba(255,255,255,0.02); border: 1px solid rgba(255,255,255,0.05); padding: 8px 12px; border-radius: 6px;">
+                <span style="font-size: 12px; font-weight: 600; color: var(--text-muted); display: flex; align-items: center; gap: 6px;">
+                  <span id="bp-status-dot" class="bp-dot bp-dot--offline" style="width: 8px; height: 8px; border-radius: 50%; display: inline-block;"></span>
+                  Stream Monitor:
+                </span>
+                <button class="form-input" id="btn-player-play" style="width: auto; height: 28px; padding: 0 10px; font-size: 11px; cursor: pointer; margin: 0; background: rgba(255,255,255,0.05); border-color: rgba(255,255,255,0.1); color: var(--text-main); font-weight: 600;">▶️ Listen</button>
+                <div style="display: flex; align-items: center; gap: 8px; margin-left: auto;">
+                  <span style="font-size: 11px; color: var(--text-muted);">🔊 Volume:</span>
+                  <input type="range" id="player-volume" min="0" max="1" step="0.05" value="0.8" style="width: 75px; cursor: pointer; margin: 0;">
+                </div>
+              </div>
+
+              <!-- Direct Playout Queue Injector Sub-panel -->
               <div style="margin-top: 20px; border-top: 1px solid rgba(255,255,255,0.05); padding-top: 15px; display: flex; flex-direction: column; gap: 10px;">
-                <div style="font-size: 11px; font-weight: 600; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.5px;">Direct Manual Deck Injector</div>
+                <div style="font-size: 11px; font-weight: 600; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.5px;">Direct Playout Queue Injector</div>
                 <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 15px;">
                   <div style="display: flex; gap: 6px;">
                     <select id="deck-manual-track-select" class="form-input" style="flex: 1; background: var(--bg-dark); cursor: pointer; font-size: 12px; height: 34px; padding: 0 8px;">
                       <option value="">Choose Track...</option>
                     </select>
-                    <button id="btn-deck-load-track" class="form-input" style="width: auto; background: rgba(0,255,102,0.1); border-color: rgba(0,255,102,0.25); color: #00ff66; font-weight: 600; cursor: pointer; font-size: 12px; height: 34px; padding: 0 12px; margin: 0;">⚡ Play</button>
+                    <button id="btn-deck-load-track" class="form-input" style="width: auto; background: rgba(0,255,102,0.1); border-color: rgba(0,255,102,0.25); color: #00ff66; font-weight: 600; cursor: pointer; font-size: 12px; height: 34px; padding: 0 12px; margin: 0;">⚡ Queue</button>
                   </div>
                   <div style="display: flex; gap: 6px;">
                     <select id="deck-manual-playlist-select" class="form-input" style="flex: 1; background: var(--bg-dark); cursor: pointer; font-size: 12px; height: 34px; padding: 0 8px;">
                       <option value="">Choose Playlist...</option>
                     </select>
-                    <button id="btn-deck-load-playlist" class="form-input" style="width: auto; background: rgba(255,0,255,0.1); border-color: rgba(255,0,255,0.25); color: #ff00ff; font-weight: 600; cursor: pointer; font-size: 12px; height: 34px; padding: 0 12px; margin: 0;">⚡ Load</button>
+                    <button id="btn-deck-load-playlist" class="form-input" style="width: auto; background: rgba(255,0,255,0.1); border-color: rgba(255,0,255,0.25); color: #ff00ff; font-weight: 600; cursor: pointer; font-size: 12px; height: 34px; padding: 0 12px; margin: 0;">⚡ Queue</button>
                   </div>
                 </div>
               </div>
@@ -1062,48 +1075,6 @@
         </form>
       </div>
     </div>
-
-    <!-- BOTTOM PERSISTENT MINI-PLAYER -->
-    <footer id="bottom-player">
-      <!-- Left: status dot + cover + track info -->
-      <div style="display:flex; align-items:center; gap:14px; min-width:0; flex:1;">
-        <!-- Live/Offline indicator -->
-        <div id="bp-status-dot" class="bp-dot bp-dot--offline" title="Stream status"></div>
-
-        <!-- Cover art -->
-        <img id="bp-cover" src="/covers/default-vinyl.svg" class="brief-art"
-             style="border-radius:6px; border:1px solid var(--border-card); flex-shrink:0;"
-             onerror="this.src='/covers/default-vinyl.svg'">
-
-        <!-- Track text + mini progress -->
-        <div style="display:flex; flex-direction:column; gap:4px; min-width:0; flex:1;">
-          <div style="display:flex; align-items:baseline; gap:8px; min-width:0;">
-            <span id="bp-title" class="brief-title" style="white-space:nowrap; overflow:hidden; text-overflow:ellipsis; max-width:260px;">Connecting...</span>
-            <span id="bp-artist" class="brief-artist" style="white-space:nowrap; overflow:hidden; text-overflow:ellipsis; flex:1;"></span>
-          </div>
-          <!-- Mini progress bar -->
-          <div style="width:100%; max-width:320px; height:3px; background:rgba(255,255,255,0.08); border-radius:2px; overflow:hidden;">
-            <div id="bp-progress" style="height:100%; width:0%; background:var(--primary-color); transition:width 1s linear; box-shadow:0 0 6px var(--primary-glow);"></div>
-          </div>
-        </div>
-      </div>
-
-      <!-- Center: mini visualizer canvas -->
-      <div style="flex:1; max-width:220px; height:40px; position:relative;">
-        <canvas id="bp-vis-canvas" style="width:100%; height:100%; display:block;"></canvas>
-      </div>
-
-      <!-- Right: controls -->
-      <div class="player-controls">
-        <button class="control-btn" id="btn-player-play" title="Play / Pause live stream">▶️</button>
-        <div style="display:flex; align-items:center; gap:8px;">
-          <span style="font-size:14px;">🔊</span>
-          <input type="range" id="player-volume" min="0" max="1" step="0.05" value="0.8"
-                 style="width:80px; cursor:pointer;">
-        </div>
-        <a href="/stream" target="_blank" style="font-size:11px; color:var(--text-muted); text-decoration:none; white-space:nowrap;" title="Open public player page">🌐 Open</a>
-      </div>
-    </footer>
 
   </div>
 
