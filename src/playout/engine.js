@@ -343,7 +343,7 @@ class PlayoutEngine {
     if (this.currentDecoder) {
       try { this.currentDecoder.kill(); } catch {}
     }
-    this.currentDecoder = spawn('ffmpeg', decoderArgs);
+    const decoderProcess = this.currentDecoder = spawn('ffmpeg', decoderArgs);
     this.isDecoderActive = true; // Signal keep-alive to pause silence generation
 
     this.currentDecoder.stdout.on('data', (pcmChunk) => {
@@ -358,7 +358,10 @@ class PlayoutEngine {
 
     this.currentDecoder.on('close', async (code) => {
       logger.info('Decoder finished playing track: %s (Exit code: %s)', track.title, code);
-      this.isDecoderActive = false; // Resume silence keep-alive to maintain Icecast connection
+      
+      if (this.currentDecoder === decoderProcess) {
+        this.isDecoderActive = false; // Resume silence keep-alive to maintain Icecast connection
+      }
       
       // If playout was stopped or paused by command, do not trigger next track on decoder close
       if (playoutState.isStopped || playoutState.isPaused) {
@@ -394,6 +397,24 @@ class PlayoutEngine {
             status: code === 0 ? 'COMPLETED' : 'INTERRUPTED' 
           }
         }).catch(err => logger.error('Failed to update play log: %s', err.message));
+      }
+
+      // If this decoder exited naturally (reached end of file) and is still the active track,
+      // trigger the next track immediately to prevent dead space!
+      if (this.currentDecoder === decoderProcess) {
+        logger.info('Decoder finished track naturally. Triggering next track immediately to prevent dead space.');
+        if (this.playoutTimeout) {
+          clearTimeout(this.playoutTimeout);
+          this.playoutTimeout = null;
+        }
+
+        const nextTrack = await this.fetchNextTrack();
+        if (nextTrack) {
+          this.play(nextTrack);
+        } else {
+          logger.warn('Playout Engine: Queue empty. Replaying current track as emergency filler.');
+          this.play(track);
+        }
       }
     });
 
