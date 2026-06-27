@@ -67,6 +67,7 @@ router.post('/', authenticateJWT, requireRole(['ADMIN', 'PRODUCER']), async (req
 });
 
 // 3. Update category
+router.patch('/:id', authenticateJWT, requireRole(['ADMIN', 'PRODUCER']), async (req, res) => {
     const catId = parseInt(req.params.id);
     const { name, description, parentId } = req.body;
   
