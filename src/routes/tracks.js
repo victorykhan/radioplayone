@@ -608,7 +608,7 @@ router.get('/:id/audio', authenticateJWT, async (req, res) => {
       return res.status(404).json({ error: 'Track not found' });
     }
 
-    const fullPath = path.join(__dirname, '../../', track.filePath);
+    const fullPath = path.join(__dirname, '../../storage', track.filePath);
     if (!fs.existsSync(fullPath)) {
       return res.status(404).json({ error: 'Audio file not found on disk' });
     }
