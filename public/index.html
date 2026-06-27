@@ -335,8 +335,101 @@
           <h1 class="section-title">Playlist Management</h1>
           <p style="color: var(--text-muted);">Create structured blocks of play items for show rotations</p>
         </div>
-        <div class="glass-card">
-          <p style="color: var(--text-muted);">Playlists module loading...</p>
+        <div style="display: grid; grid-template-columns: 320px 1fr; gap: 30px;">
+          <!-- LEFT SIDEBAR: PLAYLIST LIST & CREATOR -->
+          <div style="display: flex; flex-direction: column; gap: 20px;">
+            <!-- Playlist Creator Form -->
+            <div class="glass-card" id="card-create-playlist-wrap">
+              <h3 id="playlist-form-title" style="font-weight: 600; margin-bottom: 15px;">Create Playlist</h3>
+              <form id="form-create-playlist" style="display: flex; flex-direction: column; gap: 12px;">
+                <div class="form-group">
+                  <label class="form-label">Playlist Name</label>
+                  <input type="text" id="playlist-name-input" class="form-input" placeholder="e.g. Morning Rush Hour" required>
+                </div>
+                <div class="form-group" style="display: flex; align-items: center; gap: 8px;">
+                  <input type="checkbox" id="playlist-looping-input" checked style="width: auto; margin: 0; cursor: pointer;">
+                  <label class="form-label" style="margin: 0; cursor: pointer;" for="playlist-looping-input">Looping (repeats list)</label>
+                </div>
+                <div class="form-group" style="display: flex; align-items: center; gap: 8px;">
+                  <input type="checkbox" id="playlist-scheduled-input" style="width: auto; margin: 0; cursor: pointer;">
+                  <label class="form-label" style="margin: 0; cursor: pointer;" for="playlist-scheduled-input">Enable Schedule</label>
+                </div>
+                <div id="playlist-schedule-time-wrap" class="form-group" style="display: none;">
+                  <label class="form-label">Scheduled Start (HH:MM)</label>
+                  <input type="time" id="playlist-schedule-time-input" class="form-input">
+                </div>
+                <button type="submit" id="btn-submit-playlist" class="form-input" style="background: var(--primary-color); color: #000; font-weight: 600; cursor: pointer; border: none; margin-top: 5px;">➕ Create Playlist</button>
+                <a id="btn-cancel-edit-playlist" style="display: none; text-align: center; font-size: 13px; color: var(--text-muted); cursor: pointer; text-decoration: underline; margin-top: 5px;">Cancel Editing</a>
+              </form>
+            </div>
+            
+            <!-- Playlist List Card -->
+            <div class="glass-card" style="flex: 1; display: flex; flex-direction: column;">
+              <h3 style="font-weight: 600; margin-bottom: 15px;">Available Playlists</h3>
+              <div id="playlist-list-container" style="display: flex; flex-direction: column; gap: 10px; overflow-y: auto; max-height: 450px;">
+                <p style="color: var(--text-muted); font-size: 13px;">No playlists created yet.</p>
+              </div>
+            </div>
+          </div>
+          
+          <!-- RIGHT PANEL: PLAYLIST DETAILS & TRACK BUILDER -->
+          <div class="glass-card" id="playlist-detail-card" style="display: flex; flex-direction: column; min-height: 500px;">
+            <div id="playlist-detail-placeholder" style="flex: 1; display: flex; flex-direction: column; justify-content: center; align-items: center; color: var(--text-muted); text-align: center;">
+              <span style="font-size: 48px; margin-bottom: 15px;">📋</span>
+              <p style="margin: 0 20px;">Select a playlist from the left panel to edit its tracks and rotations</p>
+            </div>
+            
+            <div id="playlist-detail-content" style="display: none; flex-direction: column; gap: 20px;">
+              <!-- Playlist Info Header -->
+              <div style="display: flex; justify-content: space-between; align-items: flex-start; border-bottom: 1px solid rgba(255,255,255,0.05); padding-bottom: 20px;">
+                <div>
+                  <h2 id="detail-playlist-name" style="font-weight: 700; color: var(--text-main); margin-bottom: 5px;">Morning Rush Hour</h2>
+                  <div style="display: flex; align-items: center; gap: 15px; font-size: 13px; color: var(--text-muted); flex-wrap: wrap;">
+                    <span id="detail-playlist-tracks-count">0 tracks</span>
+                    <span id="detail-playlist-duration">0m 0s</span>
+                    <span id="detail-playlist-looping-tag" style="background: rgba(255,255,255,0.05); color: var(--text-muted); padding: 2px 8px; border-radius: 4px;">Looping</span>
+                    <span id="detail-playlist-schedule-tag" style="background: rgba(0,255,102,0.1); color: #00ff66; padding: 2px 8px; border-radius: 4px;">Scheduled</span>
+                  </div>
+                </div>
+                <div style="display: flex; gap: 10px;">
+                  <button id="btn-playlist-edit-info" class="form-input" style="width: auto; background: rgba(255,255,255,0.05); border-color: rgba(255,255,255,0.1); cursor: pointer; color: var(--text-main); font-weight: 600; font-size: 12px; padding: 6px 12px;">✏️ Edit Settings</button>
+                  <button id="btn-playlist-delete" class="form-input" style="width: auto; background: rgba(255,62,62,0.1); border-color: rgba(255,62,62,0.25); cursor: pointer; color: #ff3e3e; font-weight: 600; font-size: 12px; padding: 6px 12px;">🗑️ Delete</button>
+                </div>
+              </div>
+              
+              <!-- Track Adder Panel -->
+              <div style="background: rgba(255,255,255,0.02); border: 1px solid rgba(255,255,255,0.05); padding: 15px; border-radius: 8px;">
+                <h4 style="font-weight: 600; margin-bottom: 10px; font-size: 13px;">➕ Add Audio Track to Playlist</h4>
+                <div style="display: flex; gap: 10px;">
+                  <select id="playlist-track-select" class="form-input" style="flex: 1; background: var(--bg-dark); cursor: pointer;">
+                    <option value="">Loading tracks...</option>
+                  </select>
+                  <button id="btn-playlist-add-track" class="form-input" style="width: auto; background: var(--primary-color); color: #000; font-weight: 600; cursor: pointer; border: none; padding: 0 20px;">Add Track</button>
+                </div>
+              </div>
+              
+              <!-- Tracks List inside Playlist -->
+              <div>
+                <h3 style="font-weight: 600; margin-bottom: 15px;">Playlist Run Order</h3>
+                <div class="table-container" style="max-height: 400px; overflow-y: auto;">
+                  <table class="library-table">
+                    <thead>
+                      <tr>
+                        <th style="width: 50px; text-align: center;">Order</th>
+                        <th>Track Title</th>
+                        <th>Artist</th>
+                        <th style="width: 100px;">Duration</th>
+                        <th style="width: 150px; text-align: right;">Reorder / Actions</th>
+                      </tr>
+                    </thead>
+                    <tbody id="playlist-tracks-body">
+                      <!-- Populated dynamically -->
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            </div>
+          </div>
         </div>
       </section>
 

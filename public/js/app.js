@@ -290,6 +290,7 @@ function switchView(viewName) {
   // Trigger specific reloads
   if (viewName === 'analytics') loadAnalytics();
   if (viewName === 'logs') loadLogs();
+  if (viewName === 'playlists') loadPlaylists();
   if (viewName === 'library') {
     loadLibraryFolders();
     loadLibraryTracks();
@@ -2680,3 +2681,356 @@ function loadSettingsUsers() {
       .catch(err => console.error('Failed to load Instant Carts config:', err));
   }
 })();
+
+// === PLAYLIST MANAGEMENT MODULE ===
+let selectedPlaylistId = null;
+let editingPlaylistId = null;
+
+function loadPlaylists() {
+  const container = document.getElementById('playlist-list-container');
+  if (!container) return;
+
+  apiFetch('/playlists')
+    .then(playlists => {
+      container.innerHTML = '';
+      if (!playlists || playlists.length === 0) {
+        container.innerHTML = '<p style="color: var(--text-muted); font-size: 13px; padding: 10px;">No playlists created yet.</p>';
+        return;
+      }
+
+      playlists.forEach(pl => {
+        const div = document.createElement('div');
+        div.className = `glass-card playlist-item ${selectedPlaylistId === pl.id ? 'active' : ''}`;
+        div.style.cursor = 'pointer';
+        div.style.padding = '12px 15px';
+        div.style.transition = 'background 0.2s';
+        if (selectedPlaylistId === pl.id) {
+          div.style.background = 'rgba(0, 255, 102, 0.08)';
+          div.style.borderColor = 'rgba(0, 255, 102, 0.2)';
+        }
+
+        let scheduleInfo = '';
+        if (pl.isScheduled && pl.scheduleTime) {
+          scheduleInfo = `<span style="font-size: 11px; background: rgba(0,255,102,0.1); color: #00ff66; padding: 2px 6px; border-radius: 4px; margin-left: 8px;">⏰ ${pl.scheduleTime}</span>`;
+        }
+
+        const durationMinutes = Math.floor(pl.duration / 60);
+
+        div.innerHTML = `
+          <div style="display: flex; justify-content: space-between; align-items: center;">
+            <div style="font-weight: 600; color: var(--text-main); font-size: 14px;">📋 ${pl.name}</div>
+            ${scheduleInfo}
+          </div>
+          <div style="display: flex; justify-content: space-between; align-items: center; margin-top: 5px; font-size: 12px; color: var(--text-muted);">
+            <span>${pl._count?.tracks || 0} tracks</span>
+            <span>${durationMinutes}m duration</span>
+          </div>
+        `;
+
+        div.addEventListener('click', () => {
+          selectedPlaylistId = pl.id;
+          document.querySelectorAll('.playlist-item').forEach(item => {
+            item.style.background = '';
+            item.style.borderColor = '';
+          });
+          div.style.background = 'rgba(0, 255, 102, 0.08)';
+          div.style.borderColor = 'rgba(0, 255, 102, 0.2)';
+          selectPlaylist(pl.id);
+        });
+
+        container.appendChild(div);
+      });
+    })
+    .catch(err => {
+      console.error('Failed to load playlists:', err);
+      container.innerHTML = `<p style="color: #ff3e3e; font-size: 13px; padding: 10px;">Failed to load playlists: ${err.message}</p>`;
+    });
+}
+
+function selectPlaylist(playlistId) {
+  const placeholder = document.getElementById('playlist-detail-placeholder');
+  const content = document.getElementById('playlist-detail-content');
+  if (!placeholder || !content) return;
+
+  apiFetch(`/playlists/${playlistId}`)
+    .then(playlist => {
+      placeholder.style.display = 'none';
+      content.style.display = 'flex';
+
+      // Header info
+      document.getElementById('detail-playlist-name').textContent = playlist.name;
+      document.getElementById('detail-playlist-tracks-count').textContent = `${playlist.tracks?.length || 0} tracks`;
+      
+      const durationM = Math.floor(playlist.duration / 60);
+      const durationS = Math.round(playlist.duration % 60);
+      document.getElementById('detail-playlist-duration').textContent = `${durationM}m ${durationS}s`;
+
+      const loopingTag = document.getElementById('detail-playlist-looping-tag');
+      if (loopingTag) {
+        loopingTag.style.display = playlist.isLooping ? 'inline-block' : 'none';
+      }
+
+      const schedTag = document.getElementById('detail-playlist-schedule-tag');
+      if (schedTag) {
+        if (playlist.isScheduled && playlist.scheduleTime) {
+          schedTag.style.display = 'inline-block';
+          schedTag.textContent = `⏰ Scheduled: ${playlist.scheduleTime}`;
+        } else {
+          schedTag.style.display = 'none';
+        }
+      }
+
+      // Populate track dropdown selector
+      loadPlaylistTracksDropdown();
+
+      // Populate tracks table
+      const tbody = document.getElementById('playlist-tracks-body');
+      if (!tbody) return;
+      tbody.innerHTML = '';
+
+      if (!playlist.tracks || playlist.tracks.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="5" style="text-align: center; color: var(--text-muted); padding: 20px;">No tracks in this playlist yet. Add one above!</td></tr>';
+        return;
+      }
+
+      playlist.tracks.forEach((pt, index) => {
+        const tr = document.createElement('tr');
+        const minutes = Math.floor(pt.track.duration / 60);
+        const seconds = Math.round(pt.track.duration % 60).toString().padStart(2, '0');
+
+        const isFirst = index === 0;
+        const isLast = index === playlist.tracks.length - 1;
+
+        tr.innerHTML = `
+          <td style="text-align: center; font-weight: 600; color: var(--primary-color);">${index + 1}</td>
+          <td><strong>${pt.track.title}</strong></td>
+          <td>${pt.track.artist || 'Unknown'}</td>
+          <td>${minutes}:${seconds}</td>
+          <td style="text-align: right;">
+            <div style="display: inline-flex; gap: 5px;">
+              <button class="form-input btn-reorder-up" data-id="${pt.id}" data-index="${index}" style="width: auto; padding: 4px 8px; font-size: 11px; cursor: pointer; margin: 0;" ${isFirst ? 'disabled style="opacity:0.3; cursor:not-allowed;"' : ''}>🔼</button>
+              <button class="form-input btn-reorder-down" data-id="${pt.id}" data-index="${index}" style="width: auto; padding: 4px 8px; font-size: 11px; cursor: pointer; margin: 0;" ${isLast ? 'disabled style="opacity:0.3; cursor:not-allowed;"' : ''}>🔽</button>
+              <button class="form-input btn-remove-playlist-track" data-id="${pt.id}" style="width: auto; padding: 4px 8px; font-size: 11px; background: rgba(255,62,62,0.1); border-color: rgba(255,62,62,0.2); color: #ff3e3e; cursor: pointer; margin: 0;">🗑️</button>
+            </div>
+          </td>
+        `;
+
+        tr.querySelector('.btn-reorder-up')?.addEventListener('click', () => {
+          reorderPlaylistTrack(playlist, index, index - 1);
+        });
+
+        tr.querySelector('.btn-reorder-down')?.addEventListener('click', () => {
+          reorderPlaylistTrack(playlist, index, index + 1);
+        });
+
+        tr.querySelector('.btn-remove-playlist-track')?.addEventListener('click', () => {
+          removePlaylistTrack(playlist.id, pt.id);
+        });
+
+        tbody.appendChild(tr);
+      });
+    })
+    .catch(err => {
+      showNotification('Failed to retrieve playlist details: ' + err.message, 'error');
+    });
+}
+
+function loadPlaylistTracksDropdown() {
+  const select = document.getElementById('playlist-track-select');
+  if (!select) return;
+
+  apiFetch('/tracks?limit=1000')
+    .then(res => {
+      const tracks = Array.isArray(res) ? res : (res.tracks || []);
+      select.innerHTML = '<option value="">Choose a track to add...</option>';
+      tracks.forEach(track => {
+        const opt = document.createElement('option');
+        opt.value = track.id;
+        opt.textContent = `${track.title} - ${track.artist || 'Unknown'} (${Math.floor(track.duration/60)}:${Math.round(track.duration%60).toString().padStart(2,'0')})`;
+        select.appendChild(opt);
+      });
+    })
+    .catch(err => console.error('Failed to load tracks for dropdown:', err));
+}
+
+function reorderPlaylistTrack(playlist, oldIndex, newIndex) {
+  const tracksCopy = [...playlist.tracks];
+  const temp = tracksCopy[oldIndex];
+  tracksCopy[oldIndex] = tracksCopy[newIndex];
+  tracksCopy[newIndex] = temp;
+
+  const trackOrder = tracksCopy.map((pt, index) => ({
+    playlistTrackId: pt.id,
+    position: index
+  }));
+
+  apiFetch(`/playlists/${playlist.id}/reorder`, {
+    method: 'PUT',
+    body: { trackOrder }
+  })
+  .then(() => {
+    showNotification('Track order saved', 'success');
+    selectPlaylist(playlist.id);
+  })
+  .catch(err => showNotification('Failed to reorder: ' + err.message, 'error'));
+}
+
+function removePlaylistTrack(playlistId, playlistTrackId) {
+  showConfirm('Remove Track from Playlist', 'Are you sure you want to remove this track from the playlist?', () => {
+    apiFetch(`/playlists/${playlistId}/tracks/${playlistTrackId}`, {
+      method: 'DELETE'
+    })
+    .then(() => {
+      showNotification('Track removed from playlist', 'warning');
+      loadPlaylists();
+      selectPlaylist(playlistId);
+    })
+    .catch(err => showNotification(err.message, 'error'));
+  });
+}
+
+// Register Events
+(function initPlaylistEvents() {
+  window.addEventListener('load', () => {
+    const schedCheckbox = document.getElementById('playlist-scheduled-input');
+    const schedWrap = document.getElementById('playlist-schedule-time-wrap');
+    
+    if (schedCheckbox && schedWrap) {
+      schedCheckbox.addEventListener('change', () => {
+        schedWrap.style.display = schedCheckbox.checked ? 'block' : 'none';
+      });
+    }
+
+    const cancelEditBtn = document.getElementById('btn-cancel-edit-playlist');
+    if (cancelEditBtn) {
+      cancelEditBtn.addEventListener('click', () => {
+        resetPlaylistForm();
+      });
+    }
+
+    const form = document.getElementById('form-create-playlist');
+    if (form) {
+      form.addEventListener('submit', (e) => {
+        e.preventDefault();
+
+        const name = document.getElementById('playlist-name-input').value;
+        const isLooping = document.getElementById('playlist-looping-input').checked;
+        const isScheduled = document.getElementById('playlist-scheduled-input').checked;
+        const scheduleTime = isScheduled ? document.getElementById('playlist-schedule-time-input').value : null;
+
+        const body = { name, isLooping, isScheduled, scheduleTime };
+
+        if (editingPlaylistId) {
+          apiFetch(`/playlists/${editingPlaylistId}`, {
+            method: 'PATCH',
+            body
+          })
+          .then(() => {
+            showNotification('Playlist updated successfully', 'success');
+            resetPlaylistForm();
+            loadPlaylists();
+            selectPlaylist(editingPlaylistId);
+          })
+          .catch(err => showNotification(err.message, 'error'));
+        } else {
+          apiFetch('/playlists', {
+            method: 'POST',
+            body
+          })
+          .then(res => {
+            showNotification('Playlist created successfully', 'success');
+            resetPlaylistForm();
+            selectedPlaylistId = res.id;
+            loadPlaylists();
+            selectPlaylist(res.id);
+          })
+          .catch(err => showNotification(err.message, 'error'));
+        }
+      });
+    }
+
+    const addTrackBtn = document.getElementById('btn-playlist-add-track');
+    if (addTrackBtn) {
+      addTrackBtn.addEventListener('click', () => {
+        if (!selectedPlaylistId) return;
+        const select = document.getElementById('playlist-track-select');
+        const trackId = select.value;
+        if (!trackId) {
+          showNotification('Please select a track first.', 'info');
+          return;
+        }
+
+        apiFetch(`/playlists/${selectedPlaylistId}/tracks`, {
+          method: 'POST',
+          body: { trackIds: [parseInt(trackId)] }
+        })
+        .then(() => {
+          showNotification('Track added to playlist', 'success');
+          select.value = '';
+          loadPlaylists();
+          selectPlaylist(selectedPlaylistId);
+        })
+        .catch(err => showNotification(err.message, 'error'));
+      });
+    }
+
+    const deleteBtn = document.getElementById('btn-playlist-delete');
+    if (deleteBtn) {
+      deleteBtn.addEventListener('click', () => {
+        if (!selectedPlaylistId) return;
+        showConfirm('Delete Playlist', 'Are you sure you want to permanently delete this playlist? This action cannot be undone.', () => {
+          apiFetch(`/playlists/${selectedPlaylistId}`, {
+            method: 'DELETE'
+          })
+          .then(() => {
+            showNotification('Playlist deleted', 'warning');
+            selectedPlaylistId = null;
+            resetPlaylistForm();
+            loadPlaylists();
+            document.getElementById('playlist-detail-placeholder').style.display = 'flex';
+            document.getElementById('playlist-detail-content').style.display = 'none';
+          })
+          .catch(err => showNotification(err.message, 'error'));
+        });
+      });
+    }
+
+    const editSettingsBtn = document.getElementById('btn-playlist-edit-info');
+    if (editSettingsBtn) {
+      editSettingsBtn.addEventListener('click', () => {
+        if (!selectedPlaylistId) return;
+        apiFetch(`/playlists/${selectedPlaylistId}`)
+          .then(playlist => {
+            editingPlaylistId = playlist.id;
+            document.getElementById('playlist-form-title').textContent = '✏️ Edit Playlist';
+            document.getElementById('playlist-name-input').value = playlist.name;
+            document.getElementById('playlist-looping-input').checked = playlist.isLooping;
+            document.getElementById('playlist-scheduled-input').checked = playlist.isScheduled;
+            
+            if (playlist.isScheduled && playlist.scheduleTime) {
+              document.getElementById('playlist-schedule-time-wrap').style.display = 'block';
+              document.getElementById('playlist-schedule-time-input').value = playlist.scheduleTime;
+            } else {
+              document.getElementById('playlist-schedule-time-wrap').style.display = 'none';
+              document.getElementById('playlist-schedule-time-input').value = '';
+            }
+
+            document.getElementById('btn-submit-playlist').textContent = '💾 Update Playlist';
+            document.getElementById('btn-cancel-edit-playlist').style.display = 'block';
+          });
+      });
+    }
+  });
+})();
+
+function resetPlaylistForm() {
+  editingPlaylistId = null;
+  document.getElementById('playlist-form-title').textContent = 'Create Playlist';
+  document.getElementById('playlist-name-input').value = '';
+  document.getElementById('playlist-looping-input').checked = true;
+  document.getElementById('playlist-scheduled-input').checked = false;
+  document.getElementById('playlist-schedule-time-wrap').style.display = 'none';
+  document.getElementById('playlist-schedule-time-input').value = '';
+  document.getElementById('btn-submit-playlist').textContent = '➕ Create Playlist';
+  document.getElementById('btn-cancel-edit-playlist').style.display = 'none';
+}
