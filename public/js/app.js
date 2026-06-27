@@ -189,12 +189,14 @@ function enforceRbac() {
   const createPlaylistBtn = document.getElementById('btn-create-playlist');
   if (createPlaylistBtn) createPlaylistBtn.style.display = (role === 'ADMIN' || role === 'PRODUCER') ? 'inline-block' : 'none';
 
-  // 8. Playout Controls (Stop, Pause, Resume, Disconnect)
+  // 8. Playout Controls (Start, Stop, Pause, Resume, Disconnect)
+  const pStartBtn = document.getElementById('btn-playout-start');
   const pPauseBtn = document.getElementById('btn-playout-pause');
   const pResumeBtn = document.getElementById('btn-playout-resume');
   const pStopBtn = document.getElementById('btn-playout-stop');
   const pDisconnectBtn = document.getElementById('btn-playout-disconnect');
   
+  if (pStartBtn) pStartBtn.style.display = (role !== 'VIEWER') ? 'inline-block' : 'none';
   if (pPauseBtn) pPauseBtn.style.display = (role !== 'VIEWER') ? 'inline-block' : 'none';
   if (pResumeBtn) pResumeBtn.style.display = (role !== 'VIEWER') ? 'inline-block' : 'none';
   if (pStopBtn) pStopBtn.style.display = (role !== 'VIEWER') ? 'inline-block' : 'none';
@@ -340,16 +342,25 @@ function updateStudioDeck(track, isPaused = false, isStopped = false, isSourceCo
     }
   }
 
-  // Pause / resume button UI sync
+  // Start / Pause / resume button UI sync
+  const startBtn = document.getElementById('btn-playout-start');
   const pauseBtn = document.getElementById('btn-playout-pause');
   const resumeBtn = document.getElementById('btn-playout-resume');
+  
   if (pauseBtn && resumeBtn) {
-    if (isPaused) {
+    if (isStopped) {
+      if (startBtn) startBtn.style.display = 'inline-block';
       pauseBtn.style.display = 'none';
-      resumeBtn.style.display = 'inline-block';
-    } else {
-      pauseBtn.style.display = 'inline-block';
       resumeBtn.style.display = 'none';
+    } else {
+      if (startBtn) startBtn.style.display = 'none';
+      if (isPaused) {
+        pauseBtn.style.display = 'none';
+        resumeBtn.style.display = 'inline-block';
+      } else {
+        pauseBtn.style.display = 'inline-block';
+        resumeBtn.style.display = 'none';
+      }
     }
   }
 
@@ -2396,10 +2407,22 @@ function loadSettingsUsers() {
 // ═══════════════════════════════════════════════════════════════
 (function initPlayoutControls() {
   // 1. Playout Control Buttons
+  const btnStart = document.getElementById('btn-playout-start');
   const btnStop = document.getElementById('btn-playout-stop');
   const btnPause = document.getElementById('btn-playout-pause');
   const btnResume = document.getElementById('btn-playout-resume');
   const btnDisconnect = document.getElementById('btn-playout-disconnect');
+
+  if (btnStart) {
+    btnStart.addEventListener('click', () => {
+      apiFetch('/playout/start', { method: 'POST' })
+        .then(() => {
+          showNotification('Playout engine started', 'success');
+          pollNowPlaying();
+        })
+        .catch(err => showNotification(err.message, 'error'));
+    });
+  }
 
   if (btnStop) {
     btnStop.addEventListener('click', () => {

@@ -7,6 +7,22 @@ import logger from '../logger.js';
 
 const router = express.Router();
 
+router.post('/start', authenticateJWT, requireRole(['ADMIN', 'PRODUCER', 'DJ']), (req, res) => {
+  try {
+    if (playoutState.isPaused) {
+      playoutEngine.resume();
+    } else {
+      playoutState.isStopped = false;
+      playoutState.isPaused = false;
+      playoutEngine.skip();
+    }
+    res.json({ message: 'Playout started successfully' });
+  } catch (error) {
+    logger.error('Failed to start playout: %O', error);
+    res.status(500).json({ error: 'Failed to start playout engine' });
+  }
+});
+
 // 1. Playout Controls (Admin/Producer/DJ)
 router.post('/stop', authenticateJWT, requireRole(['ADMIN', 'PRODUCER', 'DJ']), (req, res) => {
   try {
@@ -77,8 +93,8 @@ router.get('/cart', authenticateJWT, async (req, res) => {
 router.post('/cart', authenticateJWT, requireRole(['ADMIN', 'PRODUCER']), async (req, res) => {
   const { slot, trackId } = req.body;
 
-  if (!slot || slot < 1 || slot > 5) {
-    return res.status(400).json({ error: 'Invalid slot index. Must be 1 to 5.' });
+  if (!slot || slot < 1 || slot > 6) {
+    return res.status(400).json({ error: 'Invalid slot index. Must be 1 to 6.' });
   }
 
   try {
@@ -108,7 +124,7 @@ router.post('/cart', authenticateJWT, requireRole(['ADMIN', 'PRODUCER']), async 
 router.post('/cart/:slot/trigger', authenticateJWT, requireRole(['ADMIN', 'PRODUCER', 'DJ']), async (req, res) => {
   const slot = parseInt(req.params.slot);
 
-  if (isNaN(slot) || slot < 1 || slot > 5) {
+  if (isNaN(slot) || slot < 1 || slot > 6) {
     return res.status(400).json({ error: 'Invalid slot' });
   }
 
