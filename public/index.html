@@ -3,9 +3,28 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>RadioPlay One - Broadcast Automation Studio</title>
+  <title>{{SEO_TITLE}}</title>
+  <meta name="description" id="meta-description" content="{{SEO_DESCRIPTION}}">
+  <link id="app-favicon" rel="icon" type="image/x-icon" href="{{FAVICON_URL}}">
+  
+  <!-- Open Graph -->
+  <meta property="og:title" id="og-title" content="{{OG_TITLE}}">
+  <meta property="og:description" id="og-description" content="{{OG_DESCRIPTION}}">
+  <meta property="og:image" id="og-image" content="{{OG_IMAGE}}">
+  <meta property="og:type" content="website">
+
   <link rel="stylesheet" href="/css/style.css">
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  
+  <style id="theme-inline-styles">
+    :root {
+      --bg-dark: {{THEME_BACKGROUND}} !important;
+      --bg-main: {{THEME_BACKGROUND}} !important;
+    }
+    body {
+      background-color: {{THEME_BACKGROUND}} !important;
+    }
+  </style>
 </head>
 <body>
 
@@ -238,7 +257,7 @@
               <label class="form-label">Station Name</label>
               <input type="text" id="settings-station-name" class="form-input" required>
             </div>
-            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 20px;">
+            <div style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 20px;">
               <div class="form-group">
                 <label class="form-label">Primary Color</label>
                 <input type="color" id="settings-color-primary" class="form-input" style="height: 40px; padding: 4px; cursor: pointer;">
@@ -247,8 +266,37 @@
                 <label class="form-label">Secondary Color</label>
                 <input type="color" id="settings-color-secondary" class="form-input" style="height: 40px; padding: 4px; cursor: pointer;">
               </div>
+              <div class="form-group">
+                <label class="form-label">Background Color</label>
+                <input type="color" id="settings-color-background" class="form-input" style="height: 40px; padding: 4px; cursor: pointer;">
+              </div>
             </div>
-            <button type="submit" class="form-input" style="background: var(--primary-color); color: #000; border: none; font-weight: 600; cursor: pointer; margin-top: 10px;">Save Theme Settings</button>
+            
+            <hr style="border: 0; border-top: 1px solid rgba(255,255,255,0.08); margin: 24px 0;">
+            <h4 style="color: var(--primary-color); font-weight: 600; font-size: 11px; text-transform: uppercase; margin-bottom: 16px; letter-spacing: 0.5px;">SEO & Social Media Meta (Open Graph)</h4>
+            
+            <div class="form-group">
+              <label class="form-label">SEO Meta Title</label>
+              <input type="text" id="settings-seo-title" class="form-input" placeholder="e.g. RadioPlay One - Live Playout Engine">
+            </div>
+            
+            <div class="form-group">
+              <label class="form-label">SEO Meta Description</label>
+              <textarea id="settings-seo-desc" class="form-input" style="height: 60px; padding: 10px; resize: vertical;" placeholder="e.g. Broadcast studio software system for managing live music feeds."></textarea>
+            </div>
+            
+            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 20px;">
+              <div class="form-group">
+                <label class="form-label">Open Graph Title</label>
+                <input type="text" id="settings-og-title" class="form-input" placeholder="e.g. RadioPlay Live Stream">
+              </div>
+              <div class="form-group">
+                <label class="form-label">Open Graph Description</label>
+                <input type="text" id="settings-og-desc" class="form-input" placeholder="e.g. Listen to our live automated playout stream.">
+              </div>
+            </div>
+            
+            <button type="submit" class="form-input" style="background: var(--primary-color); color: #000; border: none; font-weight: 600; cursor: pointer; margin-top: 10px;">Save Theme & SEO Settings</button>
           </form>
 
           <hr style="border: 0; border-top: 1px solid rgba(255,255,255,0.08); margin: 30px 0;">
@@ -260,6 +308,29 @@
               <input type="file" id="logo-file" class="form-input" accept="image/png" required>
             </div>
             <button type="submit" class="form-input" style="background: rgba(255,255,255,0.05); border-color: rgba(255,255,255,0.1); cursor: pointer; color: var(--text-main);">Upload logo</button>
+          </form>
+
+          <hr style="border: 0; border-top: 1px solid rgba(255,255,255,0.08); margin: 30px 0;">
+
+          <h3 style="font-weight: 600; margin-bottom: 20px;">Station Favicon Upload</h3>
+          <form id="favicon-form">
+            <div class="form-group">
+              <label class="form-label">Choose ICO/PNG Favicon</label>
+              <input type="file" id="favicon-file" class="form-input" accept="image/x-icon, image/png" required>
+            </div>
+            <button type="submit" class="form-input" style="background: rgba(255,255,255,0.05); border-color: rgba(255,255,255,0.1); cursor: pointer; color: var(--text-main);">Upload Favicon</button>
+          </form>
+
+          <hr style="border: 0; border-top: 1px solid rgba(255,255,255,0.08); margin: 30px 0;">
+
+          <h3 style="font-weight: 600; margin-bottom: 20px;">Open Graph Image Upload</h3>
+          <form id="og-image-form">
+            <div class="form-group">
+              <label class="form-label">Choose Landscape Image (1200x630)</label>
+              <input type="file" id="og-image-file" class="form-input" accept="image/png, image/jpeg" required>
+            </div>
+            <button type="submit" class="form-input" style="background: rgba(255,255,255,0.05); border-color: rgba(255,255,255,0.1); cursor: pointer; color: var(--text-main);">Upload OG Image</button>
+          </form>; color: var(--text-main);">Upload logo</button>
           </form>
         </div>
       </section>
@@ -308,7 +379,10 @@
       <!-- Track Cover Edit -->
       <div class="form-group" style="text-align: center; margin-bottom: 24px;">
         <img id="drawer-cover" src="/covers/default-vinyl.png" style="width: 140px; height: 140px; border-radius: 8px; object-fit: cover; display: block; margin: 0 auto 12px; cursor: pointer; border: 1px solid var(--border-card);">
-        <span style="font-size: 11px; color: var(--text-muted);">Click cover art to change image</span>
+        <span style="font-size: 11px; color: var(--text-muted); display: block; text-align: center;">Click cover art to change image</span>
+        <div style="margin-top: 10px; text-align: center;">
+          <button type="button" id="btn-drawer-preview" class="form-input" style="width: auto; display: inline-flex; align-items: center; gap: 8px; background: rgba(255,255,255,0.06); cursor: pointer; color: var(--text-main); font-weight: 500; font-size: 13px;">▶️ Listen Track</button>
+        </div>
         <input type="file" id="cover-file-input" style="display: none;" accept="image/*">
       </div>
 

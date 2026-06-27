@@ -4,6 +4,7 @@ import morgan from 'morgan';
 import dotenv from 'dotenv';
 import path from 'path';
 import { fileURLToPath } from 'url';
+import fs from 'fs';
 import logger from './logger.js';
 import prisma from './db.js';
 
@@ -44,7 +45,7 @@ app.use(morgan('combined', {
 }));
 
 // Serve Public folder (dashboard front-end and dynamic assets)
-app.use(express.static(path.join(__dirname, '../public')));
+app.use(express.static(path.join(__dirname, '../public'), { index: false }));
 
 // Mount API Routes
 app.use('/api/auth', authRoutes);
@@ -57,9 +58,72 @@ app.use('/api/public', publicRoutes);
 app.use('/api/analytics/icecast', icecastAnalyticsRoutes);
 app.use('/api/logs', logRoutes);
 
+// Intercept root and SPA fallbacks to inject dynamic database settings (SEO, OG, favicon, theme)
+const serveDynamicIndex = async (req, res) => {
+  try {
+    const indexPath = path.join(__dirname, '../public/index.html');
+    if (!fs.existsSync(indexPath)) {
+      return res.status(404).send('index.html not found');
+    }
+    let html = fs.readFileSync(indexPath, 'utf8');
+
+    // Fetch database configurations
+    const dbSettings = await prisma.systemSetting.findMany();
+    const settings = {};
+    dbSettings.forEach(s => {
+      try {
+        settings[s.key] = JSON.parse(s.value);
+      } catch {
+        settings[s.key] = s.value;
+      }
+    });
+
+    const theme = settings.theme || {
+      primary: '#00f0ff',
+      secondary: '#7000ff',
+      background: '#0d101f',
+      logoUrl: '/images/default-logo.svg',
+      faviconUrl: '/favicon.ico'
+    };
+
+    const station = settings.station_info || {
+      name: 'RadioPlay One',
+      tagline: 'The Ultimate Web Automation System'
+    };
+
+    const seo = settings.seo || {
+      title: 'RadioPlay One - Premium Playout Automation',
+      metaDescription: 'The ultimate web playout automation system.',
+      openGraphTitle: 'RadioPlay One',
+      openGraphDescription: 'The ultimate web playout automation system.',
+      openGraphImageUrl: theme.logoUrl || '/images/default-logo.svg'
+    };
+
+    // Replace placeholders
+    html = html.replace(/\{\{SEO_TITLE\}\}/g, seo.title || station.name);
+    html = html.replace(/\{\{SEO_DESCRIPTION\}\}/g, seo.metaDescription || station.tagline);
+    html = html.replace(/\{\{FAVICON_URL\}\}/g, theme.faviconUrl || '/favicon.ico');
+    html = html.replace(/\{\{OG_TITLE\}\}/g, seo.openGraphTitle || station.name);
+    html = html.replace(/\{\{OG_DESCRIPTION\}\}/g, seo.openGraphDescription || station.tagline);
+    html = html.replace(/\{\{OG_IMAGE\}\}/g, seo.openGraphImageUrl || theme.logoUrl || '/images/default-logo.svg');
+    html = html.replace(/\{\{THEME_BACKGROUND\}\}/g, theme.background || '#0d101f');
+
+    res.send(html);
+  } catch (err) {
+    logger.error('Failed serving dynamic index: %O', err);
+    res.status(500).send('Internal Server Error');
+  }
+};
+
+app.get('/', serveDynamicIndex);
+app.get('/index.html', serveDynamicIndex);
+
 // Fallback route: serve index.html for SPAs
-app.get('*', (req, res) => {
-  res.sendFile(path.join(__dirname, '../public/index.html'));
+app.get('*', (req, res, next) => {
+  if (req.path.startsWith('/api') || req.path.includes('.')) {
+    return next();
+  }
+  serveDynamicIndex(req, res);
 });
 
 // Error handling middleware

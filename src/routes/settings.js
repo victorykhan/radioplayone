@@ -135,4 +135,98 @@ router.post('/logo', authenticateJWT, requireRole(['ADMIN']), upload.single('log
   }
 });
 
+// 4. Upload station favicon
+router.post('/favicon', authenticateJWT, requireRole(['ADMIN']), upload.single('favicon'), async (req, res) => {
+  if (!req.file) {
+    return res.status(400).json({ error: 'No favicon file uploaded' });
+  }
+
+  try {
+    const imagesDir = path.join(__dirname, '../../public/images');
+    if (!fs.existsSync(imagesDir)) {
+      fs.mkdirSync(imagesDir, { recursive: true });
+    }
+
+    const fileSuffix = Date.now();
+    const ext = path.extname(req.file.originalname) || '.ico';
+    const destFilePath = path.join(imagesDir, `favicon_${fileSuffix}${ext}`);
+
+    // Move file
+    fs.renameSync(req.file.path, destFilePath);
+
+    const faviconUrl = `/images/favicon_${fileSuffix}${ext}`;
+
+    // Fetch existing theme settings and update favicon url
+    const existingThemeRecord = await prisma.systemSetting.findUnique({ where: { key: 'theme' } });
+    let themeObj = { primary: '#00f0ff', secondary: '#7000ff', background: '#0d101f' };
+    if (existingThemeRecord) {
+      themeObj = JSON.parse(existingThemeRecord.value);
+    }
+    themeObj.faviconUrl = faviconUrl;
+
+    await prisma.systemSetting.upsert({
+      where: { key: 'theme' },
+      update: { value: JSON.stringify(themeObj) },
+      create: { key: 'theme', value: JSON.stringify(themeObj) }
+    });
+
+    res.json({ message: 'Favicon uploaded successfully', faviconUrl });
+  } catch (error) {
+    logger.error('Failed to upload favicon: %O', error);
+    if (req.file && fs.existsSync(req.file.path)) {
+      fs.unlinkSync(req.file.path);
+    }
+    res.status(500).json({ error: 'Failed to process favicon' });
+  }
+});
+
+// 5. Upload Open Graph image
+router.post('/og-image', authenticateJWT, requireRole(['ADMIN']), upload.single('ogImage'), async (req, res) => {
+  if (!req.file) {
+    return res.status(400).json({ error: 'No image file uploaded' });
+  }
+
+  try {
+    const imagesDir = path.join(__dirname, '../../public/images');
+    if (!fs.existsSync(imagesDir)) {
+      fs.mkdirSync(imagesDir, { recursive: true });
+    }
+
+    const fileSuffix = Date.now();
+    const destFilePath = path.join(imagesDir, `og_${fileSuffix}.png`);
+
+    // Process and resize via Sharp for OG standard dimensions (1200x630)
+    await sharp(req.file.path)
+      .resize(1200, 630, { fit: 'cover' })
+      .toFormat('png')
+      .toFile(destFilePath);
+
+    fs.unlinkSync(req.file.path);
+
+    const ogImageUrl = `/images/og_${fileSuffix}.png`;
+
+    // Fetch existing seo settings and update openGraphImageUrl
+    const existingSeoRecord = await prisma.systemSetting.findUnique({ where: { key: 'seo' } });
+    let seoObj = {};
+    if (existingSeoRecord) {
+      seoObj = JSON.parse(existingSeoRecord.value);
+    }
+    seoObj.openGraphImageUrl = ogImageUrl;
+
+    await prisma.systemSetting.upsert({
+      where: { key: 'seo' },
+      update: { value: JSON.stringify(seoObj) },
+      create: { key: 'seo', value: JSON.stringify(seoObj) }
+    });
+
+    res.json({ message: 'Open Graph image uploaded successfully', ogImageUrl });
+  } catch (error) {
+    logger.error('Failed to upload OG image: %O', error);
+    if (req.file && fs.existsSync(req.file.path)) {
+      fs.unlinkSync(req.file.path);
+    }
+    res.status(500).json({ error: 'Failed to process OG image' });
+  }
+});
+
 export default router;

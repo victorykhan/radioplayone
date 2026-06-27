@@ -425,7 +425,7 @@ function renderLibraryTracks() {
     if (track.fileType === 'STATION_ID') typeLabel = 'Station ID';
 
     tr.innerHTML = `
-      <td>💿</td>
+      <td class="btn-play-preview" data-id="${track.id}" style="cursor: pointer; text-align: center; font-size: 16px;">▶️</td>
       <td style="font-weight: 600;">${track.title}</td>
       <td>${track.artist || 'Unknown Artist'}</td>
       <td>${durationStr}</td>
@@ -440,10 +440,15 @@ function renderLibraryTracks() {
     // Click anywhere on track row to select it and open the drawer
     tr.style.cursor = 'pointer';
     tr.addEventListener('click', (e) => {
-      if (e.target.closest('.control-btn')) return;
+      if (e.target.closest('.control-btn') || e.target.closest('.btn-play-preview')) return;
       tbody.querySelectorAll('tr').forEach(r => r.classList.remove('selected-row'));
       tr.classList.add('selected-row');
       openEditDrawer(track);
+    });
+
+    tr.querySelector('.btn-play-preview').addEventListener('click', (e) => {
+      e.stopPropagation();
+      toggleTrackPreview(track.id, e.currentTarget);
     });
 
     tr.querySelector('.btn-edit-track').addEventListener('click', (e) => {
@@ -497,6 +502,62 @@ function deleteTrack(id) {
   );
 }
 
+// Global track preview audio player
+let previewingTrackId = null;
+let previewingAudioNode = null;
+
+function toggleTrackPreview(trackId, playBtnElement) {
+  if (previewingTrackId === trackId && previewingAudioNode) {
+    if (previewingAudioNode.paused) {
+      previewingAudioNode.play();
+      playBtnElement.textContent = '⏸️';
+      if (playBtnElement.tagName === 'BUTTON') playBtnElement.innerHTML = '⏸️ Pause Track';
+    } else {
+      previewingAudioNode.pause();
+      playBtnElement.textContent = '▶️';
+      if (playBtnElement.tagName === 'BUTTON') playBtnElement.innerHTML = '▶️ Listen Track';
+    }
+    return;
+  }
+
+  // Stop current playing preview if any
+  if (previewingAudioNode) {
+    previewingAudioNode.pause();
+    previewingAudioNode = null;
+    document.querySelectorAll('.btn-play-preview').forEach(btn => btn.textContent = '▶️');
+    const drawerBtn = document.getElementById('btn-drawer-preview');
+    if (drawerBtn) drawerBtn.innerHTML = '▶️ Listen Track';
+  }
+
+  // Setup new audio preview
+  previewingTrackId = trackId;
+  previewingAudioNode = new Audio(`${API_BASE}/tracks/${trackId}/audio?token=${jwtToken}`);
+  previewingAudioNode.volume = 0.8;
+
+  previewingAudioNode.addEventListener('play', () => {
+    playBtnElement.textContent = '⏸️';
+    if (playBtnElement.tagName === 'BUTTON') playBtnElement.innerHTML = '⏸️ Pause Track';
+  });
+
+  previewingAudioNode.addEventListener('pause', () => {
+    playBtnElement.textContent = '▶️';
+    if (playBtnElement.tagName === 'BUTTON') playBtnElement.innerHTML = '▶️ Listen Track';
+  });
+
+  previewingAudioNode.addEventListener('ended', () => {
+    playBtnElement.textContent = '▶️';
+    if (playBtnElement.tagName === 'BUTTON') playBtnElement.innerHTML = '▶️ Listen Track';
+    previewingTrackId = null;
+    previewingAudioNode = null;
+  });
+
+  previewingAudioNode.play()
+    .catch(err => {
+      console.error('Track preview failed:', err);
+      showNotification('Failed to play preview. Ensure file is valid.', 'error');
+    });
+}
+
 // === TRACK EDIT DRAWER OVERRIDES ===
 function setupTrackDrawer() {
   const drawer = document.getElementById('edit-drawer');
@@ -505,7 +566,22 @@ function setupTrackDrawer() {
   const coverImg = document.getElementById('drawer-cover');
   const coverInput = document.getElementById('cover-file-input');
 
-  closeBtn.addEventListener('click', () => drawer.classList.remove('open'));
+  const drawerPreviewBtn = document.getElementById('btn-drawer-preview');
+
+  closeBtn.addEventListener('click', () => {
+    drawer.classList.remove('open');
+    if (previewingAudioNode) {
+      previewingAudioNode.pause();
+      previewingAudioNode = null;
+      previewingTrackId = null;
+      drawerPreviewBtn.innerHTML = '▶️ Listen Track';
+    }
+  });
+
+  drawerPreviewBtn.addEventListener('click', () => {
+    const trackId = parseInt(document.getElementById('drawer-track-id').value);
+    if (trackId) toggleTrackPreview(trackId, drawerPreviewBtn);
+  });
 
   // Trigger hidden file input on cover art click
   coverImg.addEventListener('click', () => coverInput.click());
@@ -764,11 +840,21 @@ function loadThemeSettings() {
     // Apply layout variables and glows dynamically
     const primaryGlow = hexToRgbA(data.theme.primary, 0.35);
     const secondaryGlow = hexToRgbA(data.theme.secondary, 0.35);
+    const bgVal = data.theme.background || '#0d101f';
     
     document.documentElement.style.setProperty('--primary-color', data.theme.primary);
     document.documentElement.style.setProperty('--secondary-color', data.theme.secondary);
     document.documentElement.style.setProperty('--primary-glow', primaryGlow);
     document.documentElement.style.setProperty('--secondary-glow', secondaryGlow);
+    
+    document.documentElement.style.setProperty('--bg-dark', bgVal);
+    document.documentElement.style.setProperty('--bg-main', bgVal);
+    document.body.style.backgroundColor = bgVal;
+
+    // Apply favicon
+    if (data.theme.faviconUrl) {
+      document.getElementById('app-favicon').href = data.theme.faviconUrl;
+    }
     
     document.getElementById('station-logo').src = data.theme.logoUrl;
     document.getElementById('station-name').textContent = data.station_info.name;
@@ -777,6 +863,15 @@ function loadThemeSettings() {
     document.getElementById('settings-station-name').value = data.station_info.name;
     document.getElementById('settings-color-primary').value = data.theme.primary;
     document.getElementById('settings-color-secondary').value = data.theme.secondary;
+    document.getElementById('settings-color-background').value = bgVal;
+
+    // Fill SEO fields
+    if (data.seo) {
+      document.getElementById('settings-seo-title').value = data.seo.title || '';
+      document.getElementById('settings-seo-desc').value = data.seo.metaDescription || '';
+      document.getElementById('settings-og-title').value = data.seo.openGraphTitle || '';
+      document.getElementById('settings-og-desc').value = data.seo.openGraphDescription || '';
+    }
   });
 }
 
@@ -812,14 +907,26 @@ function setupForms() {
     e.preventDefault();
     const primary = document.getElementById('settings-color-primary').value;
     const secondary = document.getElementById('settings-color-secondary').value;
+    const background = document.getElementById('settings-color-background').value;
     const name = document.getElementById('settings-station-name').value;
+    
+    const seoTitle = document.getElementById('settings-seo-title').value;
+    const seoDesc = document.getElementById('settings-seo-desc').value;
+    const ogTitle = document.getElementById('settings-og-title').value;
+    const ogDesc = document.getElementById('settings-og-desc').value;
 
     // Save Theme settings
     apiFetch('/settings', {
       method: 'POST',
       body: {
         key: 'theme',
-        value: { primary, secondary, logoUrl: document.getElementById('station-logo').src }
+        value: { 
+          primary, 
+          secondary, 
+          background, 
+          logoUrl: document.getElementById('station-logo').src,
+          faviconUrl: document.getElementById('app-favicon').getAttribute('href')
+        }
       }
     })
     .then(() => {
@@ -829,6 +936,22 @@ function setupForms() {
         body: {
           key: 'station_info',
           value: { name }
+        }
+      });
+    })
+    .then(() => {
+      // Save SEO settings
+      return apiFetch('/settings', {
+        method: 'POST',
+        body: {
+          key: 'seo',
+          value: {
+            title: seoTitle,
+            metaDescription: seoDesc,
+            openGraphTitle: ogTitle,
+            openGraphDescription: ogDesc,
+            openGraphImageUrl: document.getElementById('station-logo').src
+          }
         }
       });
     })
@@ -855,6 +978,47 @@ function setupForms() {
     .then(data => {
       document.getElementById('station-logo').src = data.logoUrl;
       showNotification('Logo uploaded and applied!', 'success');
+    })
+    .catch(err => showNotification(err.message, 'error'));
+  });
+
+  // Favicon upload form submission
+  document.getElementById('favicon-form').addEventListener('submit', (e) => {
+    e.preventDefault();
+    const fileInput = document.getElementById('favicon-file');
+    if (!fileInput.files[0]) return;
+
+    const formData = new FormData();
+    formData.append('favicon', fileInput.files[0]);
+
+    apiFetch('/settings/favicon', {
+      method: 'POST',
+      body: formData
+    })
+    .then(data => {
+      document.getElementById('app-favicon').href = data.faviconUrl;
+      showNotification('Favicon uploaded successfully!', 'success');
+      fileInput.value = '';
+    })
+    .catch(err => showNotification(err.message, 'error'));
+  });
+
+  // OG Image upload form submission
+  document.getElementById('og-image-form').addEventListener('submit', (e) => {
+    e.preventDefault();
+    const fileInput = document.getElementById('og-image-file');
+    if (!fileInput.files[0]) return;
+
+    const formData = new FormData();
+    formData.append('ogImage', fileInput.files[0]);
+
+    apiFetch('/settings/og-image', {
+      method: 'POST',
+      body: formData
+    })
+    .then(data => {
+      showNotification('Open Graph Image uploaded successfully!', 'success');
+      fileInput.value = '';
     })
     .catch(err => showNotification(err.message, 'error'));
   });

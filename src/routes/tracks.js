@@ -599,4 +599,26 @@ router.delete('/:id', authenticateJWT, requireRole(['ADMIN']), async (req, res) 
   }
 });
 
+// 9. Preview audio file
+router.get('/:id/audio', authenticateJWT, async (req, res) => {
+  const trackId = parseInt(req.params.id);
+  try {
+    const track = await prisma.track.findUnique({ where: { id: trackId } });
+    if (!track || track.isDeleted) {
+      return res.status(404).json({ error: 'Track not found' });
+    }
+
+    const fullPath = path.join(__dirname, '../../', track.filePath);
+    if (!fs.existsSync(fullPath)) {
+      return res.status(404).json({ error: 'Audio file not found on disk' });
+    }
+
+    res.setHeader('Content-Type', 'audio/mpeg');
+    res.sendFile(fullPath);
+  } catch (error) {
+    logger.error('Failed to stream audio file for preview: %O', error);
+    res.status(500).json({ error: 'Failed to stream audio file' });
+  }
+});
+
 export default router;
