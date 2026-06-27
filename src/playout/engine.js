@@ -15,10 +15,14 @@ class PlayoutEngine {
     this.currentDecoder = null; // FFMpeg decoder for currently playing track
     this.nextDecoder = null; // FFMpeg decoder for crossfading track
     this.playoutTimeout = null;
+    this.keepAliveInterval = null; // Sends PCM silence to keep Icecast source alive between tracks
     this.isPlaying = false;
+    this.isDecoderActive = false; // True while a decoder is piping PCM
     this.pcmSampleRate = 44100;
     this.pcmChannels = 2;
     this.pcmBytesPerSample = 2; // 16-bit signed integer (s16le)
+    // Pre-generate a 20ms silence buffer (20ms @ 44100Hz stereo s16le = 44100 * 0.02 * 2ch * 2bytes = 3528 bytes)
+    this.silenceBuffer = Buffer.alloc(3528, 0);
   }
 
   // Get Icecast connection parameters from Environment
@@ -60,13 +64,39 @@ class PlayoutEngine {
 
     this.masterEncoder.on('close', (code) => {
       logger.warn('Master encoder stream to Icecast exited with code %s. Restarting in 5s...', code);
+      this.stopKeepAlive();
       this.isPlaying = false;
+      this.masterEncoder = null;
       setTimeout(() => this.startMasterEncoder(), 5000);
     });
 
     this.masterEncoder.on('error', (err) => {
       logger.error('Master encoder process error: %O', err);
     });
+
+    // Start silence keep-alive: sends PCM silence every 20ms when no decoder is active
+    // This prevents Icecast from dropping the source connection between tracks
+    this.startKeepAlive();
+  }
+
+  startKeepAlive() {
+    this.stopKeepAlive(); // Ensure no duplicate intervals
+    this.keepAliveInterval = setInterval(() => {
+      if (!this.isDecoderActive && this.masterEncoder && this.masterEncoder.stdin.writable) {
+        try {
+          this.masterEncoder.stdin.write(this.silenceBuffer);
+        } catch (e) {
+          // stdin may close; encoder restart will handle it
+        }
+      }
+    }, 20);
+  }
+
+  stopKeepAlive() {
+    if (this.keepAliveInterval) {
+      clearInterval(this.keepAliveInterval);
+      this.keepAliveInterval = null;
+    }
   }
 
   /**
@@ -226,6 +256,7 @@ class PlayoutEngine {
     ];
 
     this.currentDecoder = spawn('ffmpeg', decoderArgs);
+    this.isDecoderActive = true; // Signal keep-alive to pause silence generation
 
     this.currentDecoder.stdout.on('data', (pcmChunk) => {
       // Pipe raw PCM bytes into master encoder
@@ -240,6 +271,7 @@ class PlayoutEngine {
 
     this.currentDecoder.on('close', (code) => {
       logger.info('Decoder finished playing track: %s (Exit code: %s)', track.title, code);
+      this.isDecoderActive = false; // Resume silence keep-alive to maintain Icecast connection
       
       // Update PlayLog with exact played duration
       const durationPlayed = Math.round((new Date() - playoutState.startedAt) / 1000);

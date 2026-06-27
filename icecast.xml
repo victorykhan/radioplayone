@@ -1,0 +1,64 @@
+<icecast>
+    <location>Canada</location>
+    <admin>admin@play.vawam.ca</admin>
+
+    <limits>
+        <clients>100</clients>
+        <sources>4</sources>
+        <queue-size>524288</queue-size>
+        <client-timeout>30</client-timeout>
+        <header-timeout>15</header-timeout>
+        <source-timeout>60</source-timeout>
+        <burst-on-connect>1</burst-on-connect>
+        <burst-size>65535</burst-size>
+    </limits>
+
+    <authentication>
+        <source-password>RadioPlay2024!</source-password>
+        <relay-password>RadioRelay2024!</relay-password>
+        <admin-user>admin</admin-user>
+        <admin-password>RadioAdmin2024!</admin-password>
+    </authentication>
+
+    <hostname>play.vawam.ca</hostname>
+
+    <listen-socket>
+        <port>8000</port>
+        <bind-address>127.0.0.1</bind-address>
+    </listen-socket>
+
+    <http-headers>
+        <header name="Access-Control-Allow-Origin" value="*" />
+    </http-headers>
+
+    <mount type="normal">
+        <mount-name>/radio</mount-name>
+        <max-listeners>100</max-listeners>
+        <public>1</public>
+        <stream-name>VAWAM Radio</stream-name>
+        <stream-description>Live Radio Stream</stream-description>
+        <stream-url>https://play.vawam.ca</stream-url>
+        <genre>Various</genre>
+    </mount>
+
+    <fileserve>1</fileserve>
+
+    <paths>
+        <basedir>/usr/share/icecast2</basedir>
+        <logdir>/var/log/icecast2</logdir>
+        <webroot>/usr/share/icecast2/web</webroot>
+        <adminroot>/usr/share/icecast2/admin</adminroot>
+        <alias source="/" destination="/status.xsl"/>
+    </paths>
+
+    <logging>
+        <accesslog>access.log</accesslog>
+        <errorlog>error.log</errorlog>
+        <loglevel>3</loglevel>
+        <logsize>10000</logsize>
+    </logging>
+
+    <security>
+        <chroot>0</chroot>
+    </security>
+</icecast>
