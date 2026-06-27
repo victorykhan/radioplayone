@@ -154,6 +154,7 @@
               <thead>
                 <tr>
                   <th style="width: 40px;"></th>
+                  <th style="width: 50px; text-align: center;">Cover</th>
                   <th data-field="title">Title</th>
                   <th data-field="artist">Artist</th>
                   <th data-field="duration">Duration</th>
@@ -330,8 +331,35 @@
               <input type="file" id="og-image-file" class="form-input" accept="image/png, image/jpeg" required>
             </div>
             <button type="submit" class="form-input" style="background: rgba(255,255,255,0.05); border-color: rgba(255,255,255,0.1); cursor: pointer; color: var(--text-main);">Upload OG Image</button>
-          </form>; color: var(--text-main);">Upload logo</button>
           </form>
+
+          <hr style="border: 0; border-top: 1px solid rgba(255,255,255,0.08); margin: 30px 0;">
+
+          <h3 style="font-weight: 600; margin-bottom: 20px;">Playout Streaming Server (Icecast / Shoutcast)</h3>
+          <div style="background: rgba(0,0,0,0.2); padding: 20px; border-radius: 8px; border: 1px solid rgba(255,255,255,0.05); font-size: 13px; line-height: 1.6;">
+            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px;">
+              <div>
+                <span style="color: var(--text-muted); display: block; font-size: 11px; text-transform: uppercase;">Server Host</span>
+                <span id="settings-broadcast-host" style="font-weight: 600; color: var(--text-main);">play.vawam.ca</span>
+              </div>
+              <div>
+                <span style="color: var(--text-muted); display: block; font-size: 11px; text-transform: uppercase;">Server Port</span>
+                <span id="settings-broadcast-port" style="font-weight: 600; color: var(--text-main);">8000</span>
+              </div>
+              <div>
+                <span style="color: var(--text-muted); display: block; font-size: 11px; text-transform: uppercase;">Mount Point</span>
+                <span id="settings-broadcast-mount" style="font-weight: 600; color: var(--text-main);">/radio.mp3</span>
+              </div>
+              <div>
+                <span style="color: var(--text-muted); display: block; font-size: 11px; text-transform: uppercase;">Source Username</span>
+                <span id="settings-broadcast-username" style="font-weight: 600; color: var(--text-main);">source</span>
+              </div>
+            </div>
+            <div style="margin-top: 16px; border-top: 1px solid rgba(255,255,255,0.05); padding-top: 12px; display: flex; align-items: center; gap: 8px;">
+              <span style="display: inline-block; width: 8px; height: 8px; background: #00ff66; border-radius: 50%; box-shadow: 0 0 8px #00ff66;"></span>
+              <span style="font-weight: 600; color: #00ff66;">Playout Stream Connected</span>
+            </div>
+          </div>
         </div>
       </section>
 

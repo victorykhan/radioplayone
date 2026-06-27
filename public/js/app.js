@@ -426,6 +426,9 @@ function renderLibraryTracks() {
 
     tr.innerHTML = `
       <td class="btn-play-preview" data-id="${track.id}" style="cursor: pointer; text-align: center; font-size: 16px;">▶️</td>
+      <td style="text-align: center;">
+        <img src="${track.coverArtUrl || '/covers/default-vinyl.svg'}" style="width: 32px; height: 32px; border-radius: 4px; object-fit: cover; border: 1px solid rgba(255,255,255,0.08);">
+      </td>
       <td style="font-weight: 600;">${track.title}</td>
       <td>${track.artist || 'Unknown Artist'}</td>
       <td>${durationStr}</td>
@@ -871,6 +874,14 @@ function loadThemeSettings() {
       document.getElementById('settings-seo-desc').value = data.seo.metaDescription || '';
       document.getElementById('settings-og-title').value = data.seo.openGraphTitle || '';
       document.getElementById('settings-og-desc').value = data.seo.openGraphDescription || '';
+    }
+
+    // Fill Broadcast fields
+    if (data.broadcast) {
+      document.getElementById('settings-broadcast-host').textContent = data.broadcast.host;
+      document.getElementById('settings-broadcast-port').textContent = data.broadcast.port;
+      document.getElementById('settings-broadcast-mount').textContent = data.broadcast.mount;
+      document.getElementById('settings-broadcast-username').textContent = data.broadcast.username;
     }
   });
 }

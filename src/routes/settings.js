@@ -46,6 +46,13 @@ router.get('/', authenticateJWT, async (req, res) => {
       };
     }
 
+    settings.broadcast = {
+      host: process.env.ICECAST_HOST || 'play.vawam.ca',
+      port: process.env.ICECAST_PORT || '8000',
+      mount: process.env.ICECAST_MOUNT || '/radio.mp3',
+      username: process.env.ICECAST_USERNAME || 'source'
+    };
+
     res.json(settings);
   } catch (error) {
     logger.error('Failed to get settings: %O', error);
