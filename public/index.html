@@ -145,9 +145,19 @@
 
         <!-- Library Table Card -->
         <div class="glass-card">
-          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
+          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; gap: 12px;">
             <h3 id="library-sub-title" style="font-weight: 600;">All Music Tracks</h3>
-            <input type="text" id="library-search" class="form-input" placeholder="Search title, artist, album..." style="width: 250px;">
+            <div style="display: flex; gap: 12px; align-items: center;">
+              <select id="library-filter-type" class="form-input" style="width: 160px; background: rgba(255,255,255,0.05); border-color: rgba(255,255,255,0.1); color: var(--text-main); cursor: pointer;">
+                <option value="">All Formats/Types</option>
+                <option value="SONG">🎵 Songs</option>
+                <option value="AD">💰 Ads / Commercials</option>
+                <option value="JINGLE">🎤 Jingles / Sweep</option>
+                <option value="STATION_ID">📻 Station IDs</option>
+                <option value="FILLER">Filler Tracks</option>
+              </select>
+              <input type="text" id="library-search" class="form-input" placeholder="Search title, artist, album..." style="width: 230px;">
+            </div>
           </div>
           <div class="table-container">
             <table class="library-table">
@@ -157,6 +167,7 @@
                   <th style="width: 50px; text-align: center;">Cover</th>
                   <th data-field="title">Title</th>
                   <th data-field="artist">Artist</th>
+                  <th>Folders</th>
                   <th data-field="duration">Duration</th>
                   <th data-field="fileType">Type</th>
                   <th data-field="createdAt">Added</th>
@@ -410,6 +421,14 @@
         <span style="font-size: 11px; color: var(--text-muted); display: block; text-align: center;">Click cover art to change image</span>
         <div style="margin-top: 10px; text-align: center;">
           <button type="button" id="btn-drawer-preview" class="form-input" style="width: auto; display: inline-flex; align-items: center; gap: 8px; background: rgba(255,255,255,0.06); cursor: pointer; color: var(--text-main); font-weight: 500; font-size: 13px;">▶️ Listen Track</button>
+        </div>
+        <!-- Inline Audio Scrubber for Preview -->
+        <div id="drawer-preview-container" style="background: rgba(0,0,0,0.25); padding: 12px; border-radius: 6px; border: 1px solid rgba(255,255,255,0.08); margin: 12px auto 0; display: none; flex-direction: column; gap: 8px; width: 280px; text-align: left;">
+          <div style="display: flex; justify-content: space-between; align-items: center; font-size: 11px;">
+            <span id="drawer-preview-state" style="color: var(--primary-color); font-weight: 600;">Playing Preview</span>
+            <span id="drawer-preview-time" style="color: var(--text-muted);">0:00 / 0:00</span>
+          </div>
+          <input type="range" id="drawer-preview-scrub" min="0" max="100" value="0" style="width: 100%; cursor: pointer; height: 4px; background: rgba(255,255,255,0.1); border-radius: 2px; outline: none; transition: background 0.1s;">
         </div>
         <input type="file" id="cover-file-input" style="display: none;" accept="image/*">
       </div>

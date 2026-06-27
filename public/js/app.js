@@ -394,6 +394,11 @@ function loadLibraryTracks() {
     endpoint += `&search=${encodeURIComponent(searchInput)}`;
   }
 
+  const typeFilter = document.getElementById('library-filter-type').value;
+  if (typeFilter) {
+    endpoint += `&fileType=${typeFilter}`;
+  }
+
   apiFetch(endpoint)
     .then(data => {
       tracksList = data.tracks;
@@ -407,7 +412,7 @@ function renderLibraryTracks() {
   tbody.innerHTML = '';
 
   if (tracksList.length === 0) {
-    tbody.innerHTML = `<tr><td colspan="7" style="text-align: center; color: var(--text-muted); padding: 40px 0;">No tracks found in this category.</td></tr>`;
+    tbody.innerHTML = `<tr><td colspan="8" style="text-align: center; color: var(--text-muted); padding: 40px 0;">No tracks found in this category.</td></tr>`;
     return;
   }
 
@@ -424,6 +429,10 @@ function renderLibraryTracks() {
     if (track.fileType === 'JINGLE') typeLabel = 'Jingle';
     if (track.fileType === 'STATION_ID') typeLabel = 'Station ID';
 
+    const categoriesStr = track.categories && track.categories.length > 0
+      ? track.categories.map(c => `<span style="background: var(--primary-glow); border: 1px solid var(--primary-color); padding: 2px 6px; border-radius: 4px; font-size: 10px; color: var(--text-main); margin-right: 4px; white-space: nowrap;">${c.name}</span>`).join('')
+      : '<span style="color: var(--text-muted); font-size: 11px;">None</span>';
+
     tr.innerHTML = `
       <td class="btn-play-preview" data-id="${track.id}" style="cursor: pointer; text-align: center; font-size: 16px;">▶️</td>
       <td style="text-align: center;">
@@ -431,6 +440,7 @@ function renderLibraryTracks() {
       </td>
       <td style="font-weight: 600;">${track.title}</td>
       <td>${track.artist || 'Unknown Artist'}</td>
+      <td><div style="display: flex; flex-wrap: wrap; gap: 4px; max-width: 180px;">${categoriesStr}</div></td>
       <td>${durationStr}</td>
       <td><span style="background: rgba(255,255,255,0.06); padding: 4px 8px; border-radius: 4px; font-size: 11px;">${typeLabel}</span></td>
       <td>${dateStr}</td>
@@ -488,6 +498,11 @@ document.getElementById('library-search').addEventListener('input', () => {
   loadLibraryTracks();
 });
 
+// Format/Type filter dropdown input
+document.getElementById('library-filter-type').addEventListener('change', () => {
+  loadLibraryTracks();
+});
+
 // Delete Track
 function deleteTrack(id) {
   showConfirm(
@@ -510,15 +525,32 @@ let previewingTrackId = null;
 let previewingAudioNode = null;
 
 function toggleTrackPreview(trackId, playBtnElement) {
+  const scrubContainer = document.getElementById('drawer-preview-container');
+  const scrubSlider = document.getElementById('drawer-preview-scrub');
+  const timeText = document.getElementById('drawer-preview-time');
+  const stateText = document.getElementById('drawer-preview-state');
+
+  const resetScrubber = () => {
+    if (scrubContainer) scrubContainer.style.display = 'none';
+    if (scrubSlider) {
+      scrubSlider.value = 0;
+      // Remove event listeners by cloning
+      const newSlider = scrubSlider.cloneNode(true);
+      scrubSlider.parentNode.replaceChild(newSlider, scrubSlider);
+    }
+  };
+
   if (previewingTrackId === trackId && previewingAudioNode) {
     if (previewingAudioNode.paused) {
       previewingAudioNode.play();
       playBtnElement.textContent = '⏸️';
       if (playBtnElement.tagName === 'BUTTON') playBtnElement.innerHTML = '⏸️ Pause Track';
+      if (stateText) stateText.textContent = 'Playing Preview';
     } else {
       previewingAudioNode.pause();
       playBtnElement.textContent = '▶️';
       if (playBtnElement.tagName === 'BUTTON') playBtnElement.innerHTML = '▶️ Listen Track';
+      if (stateText) stateText.textContent = 'Paused';
     }
     return;
   }
@@ -530,6 +562,7 @@ function toggleTrackPreview(trackId, playBtnElement) {
     document.querySelectorAll('.btn-play-preview').forEach(btn => btn.textContent = '▶️');
     const drawerBtn = document.getElementById('btn-drawer-preview');
     if (drawerBtn) drawerBtn.innerHTML = '▶️ Listen Track';
+    resetScrubber();
   }
 
   // Setup new audio preview
@@ -537,14 +570,43 @@ function toggleTrackPreview(trackId, playBtnElement) {
   previewingAudioNode = new Audio(`${API_BASE}/tracks/${trackId}/audio?token=${jwtToken}`);
   previewingAudioNode.volume = 0.8;
 
+  // Setup scrubber view if elements exist
+  const liveScrubber = document.getElementById('drawer-preview-scrub');
+  if (scrubContainer && liveScrubber) {
+    scrubContainer.style.display = 'flex';
+    stateText.textContent = 'Playing Preview';
+    timeText.textContent = '0:00 / 0:00';
+
+    previewingAudioNode.addEventListener('timeupdate', () => {
+      if (!previewingAudioNode) return;
+      const cur = previewingAudioNode.currentTime;
+      const dur = previewingAudioNode.duration || 0;
+      liveScrubber.value = dur > 0 ? (cur / dur) * 100 : 0;
+
+      const curMin = Math.floor(cur / 60);
+      const curSec = Math.floor(cur % 60);
+      const durMin = Math.floor(dur / 60);
+      const durSec = Math.floor(dur % 60);
+      timeText.textContent = `${curMin}:${String(curSec).padStart(2, '0')} / ${durMin}:${String(durSec).padStart(2, '0')}`;
+    });
+
+    liveScrubber.addEventListener('input', (e) => {
+      if (previewingAudioNode && previewingAudioNode.duration) {
+        previewingAudioNode.currentTime = (e.target.value / 100) * previewingAudioNode.duration;
+      }
+    });
+  }
+
   previewingAudioNode.addEventListener('play', () => {
     playBtnElement.textContent = '⏸️';
     if (playBtnElement.tagName === 'BUTTON') playBtnElement.innerHTML = '⏸️ Pause Track';
+    if (stateText) stateText.textContent = 'Playing Preview';
   });
 
   previewingAudioNode.addEventListener('pause', () => {
     playBtnElement.textContent = '▶️';
     if (playBtnElement.tagName === 'BUTTON') playBtnElement.innerHTML = '▶️ Listen Track';
+    if (stateText) stateText.textContent = 'Paused';
   });
 
   previewingAudioNode.addEventListener('ended', () => {
@@ -552,6 +614,7 @@ function toggleTrackPreview(trackId, playBtnElement) {
     if (playBtnElement.tagName === 'BUTTON') playBtnElement.innerHTML = '▶️ Listen Track';
     previewingTrackId = null;
     previewingAudioNode = null;
+    resetScrubber();
   });
 
   previewingAudioNode.play()
