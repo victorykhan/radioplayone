@@ -219,6 +219,18 @@ function enforceRbac() {
     btn.disabled = (role === 'VIEWER');
     if (role === 'VIEWER') btn.style.opacity = '0.5';
   });
+
+  // 12. Direct Manual Deck Injector RBAC
+  const manualTrackSelect = document.getElementById('deck-manual-track-select');
+  const manualTrackBtn = document.getElementById('btn-deck-load-track');
+  const manualPlaylistSelect = document.getElementById('deck-manual-playlist-select');
+  const manualPlaylistBtn = document.getElementById('btn-deck-load-playlist');
+  
+  const isReadOnly = (role === 'VIEWER');
+  if (manualTrackSelect) manualTrackSelect.disabled = isReadOnly;
+  if (manualTrackBtn) manualTrackBtn.disabled = isReadOnly;
+  if (manualPlaylistSelect) manualPlaylistSelect.disabled = isReadOnly;
+  if (manualPlaylistBtn) manualPlaylistBtn.disabled = isReadOnly;
 }
 
 function logout() {
@@ -288,6 +300,7 @@ function switchView(viewName) {
   currentView = viewName;
 
   // Trigger specific reloads
+  if (viewName === 'studio') loadDeckManualSelectors();
   if (viewName === 'analytics') loadAnalytics();
   if (viewName === 'logs') loadLogs();
   if (viewName === 'playlists') loadPlaylists();
@@ -3034,3 +3047,94 @@ function resetPlaylistForm() {
   document.getElementById('btn-submit-playlist').textContent = '➕ Create Playlist';
   document.getElementById('btn-cancel-edit-playlist').style.display = 'none';
 }
+
+// === DIRECT MANUAL DECK INJECTOR MODULE ===
+function loadDeckManualSelectors() {
+  const trackSelect = document.getElementById('deck-manual-track-select');
+  const playlistSelect = document.getElementById('deck-manual-playlist-select');
+  
+  if (!trackSelect || !playlistSelect) return;
+
+  apiFetch('/tracks?limit=1000')
+    .then(res => {
+      const tracks = Array.isArray(res) ? res : (res.tracks || []);
+      const savedVal = trackSelect.value;
+      trackSelect.innerHTML = '<option value="">Choose Track...</option>';
+      tracks.forEach(track => {
+        const opt = document.createElement('option');
+        opt.value = track.id;
+        opt.textContent = `${track.title} - ${track.artist || 'Unknown'}`;
+        trackSelect.appendChild(opt);
+      });
+      if (savedVal) trackSelect.value = savedVal;
+    })
+    .catch(err => console.error('Failed to load tracks for manual deck injection:', err));
+
+  apiFetch('/playlists')
+    .then(playlists => {
+      const savedVal = playlistSelect.value;
+      playlistSelect.innerHTML = '<option value="">Choose Playlist...</option>';
+      playlists.forEach(pl => {
+        const opt = document.createElement('option');
+        opt.value = pl.id;
+        opt.textContent = pl.name;
+        playlistSelect.appendChild(opt);
+      });
+      if (savedVal) playlistSelect.value = savedVal;
+    })
+    .catch(err => console.error('Failed to load playlists for manual deck injection:', err));
+}
+
+(function initManualDeckInjector() {
+  window.addEventListener('load', () => {
+    const loadTrackBtn = document.getElementById('btn-deck-load-track');
+    if (loadTrackBtn) {
+      loadTrackBtn.addEventListener('click', () => {
+        const select = document.getElementById('deck-manual-track-select');
+        const trackId = select ? select.value : '';
+        if (!trackId) {
+          showNotification('Please select a track first', 'info');
+          return;
+        }
+
+        apiFetch('/playout/load-track', {
+          method: 'POST',
+          body: { trackId }
+        })
+        .then(res => {
+          showNotification(res.message, 'success');
+          if (select) select.value = '';
+          pollNowPlaying();
+        })
+        .catch(err => showNotification(err.message, 'error'));
+      });
+    }
+
+    const loadPlaylistBtn = document.getElementById('btn-deck-load-playlist');
+    if (loadPlaylistBtn) {
+      loadPlaylistBtn.addEventListener('click', () => {
+        const select = document.getElementById('deck-manual-playlist-select');
+        const playlistId = select ? select.value : '';
+        if (!playlistId) {
+          showNotification('Please select a playlist first', 'info');
+          return;
+        }
+
+        apiFetch('/playout/load-playlist', {
+          method: 'POST',
+          body: { playlistId }
+        })
+        .then(res => {
+          showNotification(res.message, 'success');
+          if (select) select.value = '';
+          pollNowPlaying();
+        })
+        .catch(err => showNotification(err.message, 'error'));
+      });
+    }
+
+    if (currentView === 'studio') {
+      loadDeckManualSelectors();
+    }
+  });
+})();

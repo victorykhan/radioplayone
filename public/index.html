@@ -150,6 +150,25 @@
                   </label>
                 </div>
               </div>
+
+              <!-- Direct Manual Deck Loader Sub-panel -->
+              <div style="margin-top: 20px; border-top: 1px solid rgba(255,255,255,0.05); padding-top: 15px; display: flex; flex-direction: column; gap: 10px;">
+                <div style="font-size: 11px; font-weight: 600; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.5px;">Direct Manual Deck Injector</div>
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 15px;">
+                  <div style="display: flex; gap: 6px;">
+                    <select id="deck-manual-track-select" class="form-input" style="flex: 1; background: var(--bg-dark); cursor: pointer; font-size: 12px; height: 34px; padding: 0 8px;">
+                      <option value="">Choose Track...</option>
+                    </select>
+                    <button id="btn-deck-load-track" class="form-input" style="width: auto; background: rgba(0,255,102,0.1); border-color: rgba(0,255,102,0.25); color: #00ff66; font-weight: 600; cursor: pointer; font-size: 12px; height: 34px; padding: 0 12px; margin: 0;">⚡ Play</button>
+                  </div>
+                  <div style="display: flex; gap: 6px;">
+                    <select id="deck-manual-playlist-select" class="form-input" style="flex: 1; background: var(--bg-dark); cursor: pointer; font-size: 12px; height: 34px; padding: 0 8px;">
+                      <option value="">Choose Playlist...</option>
+                    </select>
+                    <button id="btn-deck-load-playlist" class="form-input" style="width: auto; background: rgba(255,0,255,0.1); border-color: rgba(255,0,255,0.25); color: #ff00ff; font-weight: 600; cursor: pointer; font-size: 12px; height: 34px; padding: 0 12px; margin: 0;">⚡ Load</button>
+                  </div>
+                </div>
+              </div>
             </div>
 
             <!-- INSTANT CARTS (SOUNDBOARD) -->

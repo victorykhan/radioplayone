@@ -76,6 +76,91 @@ router.post('/connect', authenticateJWT, requireRole(['ADMIN', 'PRODUCER']), asy
   }
 });
 
+// Manually Load and Play single Track in Active Deck instantly (Admin/Producer/DJ)
+router.post('/load-track', authenticateJWT, requireRole(['ADMIN', 'PRODUCER', 'DJ']), async (req, res) => {
+  const { trackId } = req.body;
+  if (!trackId) return res.status(400).json({ error: 'trackId is required' });
+
+  try {
+    const track = await prisma.track.findUnique({ where: { id: parseInt(trackId) } });
+    if (!track || track.isDeleted) {
+      return res.status(404).json({ error: 'Track not found or deleted' });
+    }
+
+    if (playoutEngine.playoutTimeout) {
+      clearTimeout(playoutEngine.playoutTimeout);
+      playoutEngine.playoutTimeout = null;
+    }
+    if (playoutEngine.currentDecoder) {
+      playoutEngine.currentDecoder.kill();
+      playoutEngine.currentDecoder = null;
+    }
+
+    playoutState.isStopped = false;
+    playoutState.isPaused = false;
+    playoutState.pausedElapsed = 0;
+
+    playoutState.activePlaylistId = null;
+    playoutState.activePlaylistIndex = 0;
+
+    playoutEngine.play(track);
+    res.json({ message: `Manually loaded track "${track.title}" into playout deck` });
+  } catch (error) {
+    logger.error('Failed to manually load track: %O', error);
+    res.status(500).json({ error: 'Failed to load track into deck' });
+  }
+});
+
+// Manually Load and Start Playlist rotation instantly (Admin/Producer/DJ)
+router.post('/load-playlist', authenticateJWT, requireRole(['ADMIN', 'PRODUCER', 'DJ']), async (req, res) => {
+  const { playlistId } = req.body;
+  if (!playlistId) return res.status(400).json({ error: 'playlistId is required' });
+
+  try {
+    const playlist = await prisma.playlist.findUnique({
+      where: { id: parseInt(playlistId) },
+      include: {
+        tracks: {
+          orderBy: { position: 'asc' },
+          include: { track: true }
+        }
+      }
+    });
+
+    if (!playlist) {
+      return res.status(404).json({ error: 'Playlist not found' });
+    }
+
+    if (!playlist.tracks || playlist.tracks.length === 0) {
+      return res.status(400).json({ error: 'Selected playlist is empty' });
+    }
+
+    if (playoutEngine.playoutTimeout) {
+      clearTimeout(playoutEngine.playoutTimeout);
+      playoutEngine.playoutTimeout = null;
+    }
+    if (playoutEngine.currentDecoder) {
+      playoutEngine.currentDecoder.kill();
+      playoutEngine.currentDecoder = null;
+    }
+
+    playoutState.isStopped = false;
+    playoutState.isPaused = false;
+    playoutState.pausedElapsed = 0;
+
+    playoutState.activePlaylistId = playlist.id;
+    playoutState.activePlaylistIndex = 0;
+    
+    const firstPlaylistTrack = playlist.tracks[0].track;
+    playoutEngine.play(firstPlaylistTrack);
+
+    res.json({ message: `Manually loaded playlist "${playlist.name}" into deck` });
+  } catch (error) {
+    logger.error('Failed to manually load playlist: %O', error);
+    res.status(500).json({ error: 'Failed to load playlist into deck' });
+  }
+});
+
 // 2. Instant Carts Configuration & Listing
 router.get('/cart', authenticateJWT, async (req, res) => {
   try {
