@@ -31,6 +31,14 @@ class PlayoutStateManager {
     this.activePlaylistId = null; // ID of currently executing playlist
     this.activePlaylistIndex = 0; // Current track position in active playlist
     this.lastScheduledTriggerTime = null; // HH:MM of last triggered scheduled playlist
+    
+    // Playback control states
+    this.isPaused = false;
+    this.pausedElapsed = 0;
+    this.isStopped = false;
+    this.interruptedTrack = null;
+    this.interruptedElapsed = 0;
+    this.fallbackPlaylistIndex = 0;
   }
 
   setCurrentTrack(track) {
@@ -169,10 +177,17 @@ class PlayoutStateManager {
 
   getNowPlaying() {
     if (!this.currentTrack) {
-      return { now_playing: null, up_next: this._serializeQueue() };
+      return { 
+        now_playing: null, 
+        up_next: this._serializeQueue(),
+        isPaused: this.isPaused,
+        isStopped: this.isStopped
+      };
     }
 
-    const elapsed = Math.round((new Date() - this.startedAt) / 1000);
+    const elapsed = this.isPaused 
+      ? this.pausedElapsed 
+      : Math.round((new Date() - this.startedAt) / 1000);
     this.elapsedSeconds = elapsed;
 
     return {
@@ -186,7 +201,9 @@ class PlayoutStateManager {
         elapsed: Math.min(elapsed, Math.round(this.currentTrack.duration)),
         coverArtUrl: `/covers/${this.currentTrack.fileHash}.jpg`
       },
-      up_next: this._serializeQueue()
+      up_next: this._serializeQueue(),
+      isPaused: this.isPaused,
+      isStopped: this.isStopped
     };
   }
 

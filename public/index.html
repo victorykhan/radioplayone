@@ -94,8 +94,12 @@
                   </div>
                 </div>
               </div>
-              <div style="display: flex; gap: 12px; margin-top: 20px;">
-                <button id="btn-skip" class="form-input" style="width: auto; background: rgba(255,255,255,0.05); border-color: rgba(255,255,255,0.1); cursor: pointer; display: flex; align-items: center; gap: 8px; color: var(--text-main); font-weight: 600;">⏭️ Skip Track</button>
+              <div style="display: flex; gap: 10px; margin-top: 20px; flex-wrap: wrap;">
+                <button id="btn-playout-pause" class="form-input" style="width: auto; background: rgba(255,170,0,0.1); border-color: rgba(255,170,0,0.25); cursor: pointer; display: flex; align-items: center; gap: 8px; color: #ffaa00; font-weight: 600;">⏸️ Pause</button>
+                <button id="btn-playout-resume" class="form-input" style="width: auto; background: rgba(0,255,102,0.1); border-color: rgba(0,255,102,0.25); cursor: pointer; display: flex; align-items: center; gap: 8px; color: #00ff66; font-weight: 600; display: none;">▶️ Resume</button>
+                <button id="btn-playout-stop" class="form-input" style="width: auto; background: rgba(255,62,62,0.1); border-color: rgba(255,62,62,0.25); cursor: pointer; display: flex; align-items: center; gap: 8px; color: #ff3e3e; font-weight: 600;">⏹️ Stop</button>
+                <button id="btn-skip" class="form-input" style="width: auto; background: rgba(255,255,255,0.05); border-color: rgba(255,255,255,0.1); cursor: pointer; display: flex; align-items: center; gap: 8px; color: var(--text-main); font-weight: 600;">⏭️ Skip</button>
+                <button id="btn-playout-disconnect" class="form-input" style="width: auto; background: rgba(255,255,255,0.02); border-color: rgba(255,255,255,0.05); cursor: pointer; display: flex; align-items: center; gap: 8px; color: var(--text-muted); font-weight: 600; margin-left: auto;">🔌 Disconnect Source</button>
               </div>
             </div>
 
@@ -104,12 +108,12 @@
               <h3 style="font-weight: 600; margin-bottom: 8px;">Instant Carts</h3>
               <p style="color: var(--text-muted); font-size: 13px;">Quick-fire sweeps and station sound clips</p>
               <div class="carts-grid">
-                <button class="cart-button" style="border-color: #ff3e3e;">🚨 Laser</button>
-                <button class="cart-button" style="border-color: #00f0ff;">🎤 Intro Sweeper</button>
-                <button class="cart-button" style="border-color: #ffaa00;">🎵 Station ID</button>
-                <button class="cart-button" style="border-color: #ff00ff;">💥 Airhorn</button>
-                <button class="cart-button" style="border-color: #55ff00;">📻 Static Out</button>
-                <button class="cart-button" style="border-color: #7000ff;">🎭 Synth Drop</button>
+                <button class="cart-button" style="border-color: #ff3e3e;" data-slot="1">🚨 Laser</button>
+                <button class="cart-button" style="border-color: #00f0ff;" data-slot="2">🎤 Intro Sweeper</button>
+                <button class="cart-button" style="border-color: #ffaa00;" data-slot="3">🎵 Station ID</button>
+                <button class="cart-button" style="border-color: #ff00ff;" data-slot="4">💥 Airhorn</button>
+                <button class="cart-button" style="border-color: #55ff00;" data-slot="5">📻 Static Out</button>
+                <button class="cart-button" style="border-color: #7000ff;" data-slot="6">🎭 Synth Drop</button>
               </div>
             </div>
           </div>
@@ -532,6 +536,61 @@
             </form>
           </div>
         </div>
+
+        <!-- INSTANT CARTS (SOUNDBOARD) CONFIGURATION -->
+        <div class="glass-card" style="max-width: 600px; margin-top: 30px;" id="settings-carts-card">
+          <h3 style="font-weight: 600; margin-bottom: 8px;">🎮 Instant Carts Configuration</h3>
+          <p style="color: var(--text-muted); font-size: 13px; margin-bottom: 20px;">Map sound effect tracks to quick-fire soundboard keys</p>
+          
+          <form id="settings-carts-form">
+            <div style="display: flex; flex-direction: column; gap: 16px;">
+              <div class="form-group" style="margin-bottom: 0;">
+                <label class="form-label" style="display:flex; justify-content:space-between;">
+                  <span>Slot 1: 🚨 Laser</span>
+                  <span id="cart-lbl-1" style="font-size:11px; color:var(--primary-color);">Not configured</span>
+                </label>
+                <select id="cart-select-1" class="form-input cart-track-select"><option value="">-- Choose Track --</option></select>
+              </div>
+              <div class="form-group" style="margin-bottom: 0;">
+                <label class="form-label" style="display:flex; justify-content:space-between;">
+                  <span>Slot 2: 🎤 Intro Sweeper</span>
+                  <span id="cart-lbl-2" style="font-size:11px; color:var(--primary-color);">Not configured</span>
+                </label>
+                <select id="cart-select-2" class="form-input cart-track-select"><option value="">-- Choose Track --</option></select>
+              </div>
+              <div class="form-group" style="margin-bottom: 0;">
+                <label class="form-label" style="display:flex; justify-content:space-between;">
+                  <span>Slot 3: 🎵 Station ID</span>
+                  <span id="cart-lbl-3" style="font-size:11px; color:var(--primary-color);">Not configured</span>
+                </label>
+                <select id="cart-select-3" class="form-input cart-track-select"><option value="">-- Choose Track --</option></select>
+              </div>
+              <div class="form-group" style="margin-bottom: 0;">
+                <label class="form-label" style="display:flex; justify-content:space-between;">
+                  <span>Slot 4: 💥 Airhorn</span>
+                  <span id="cart-lbl-4" style="font-size:11px; color:var(--primary-color);">Not configured</span>
+                </label>
+                <select id="cart-select-4" class="form-input cart-track-select"><option value="">-- Choose Track --</option></select>
+              </div>
+              <div class="form-group" style="margin-bottom: 0;">
+                <label class="form-label" style="display:flex; justify-content:space-between;">
+                  <span>Slot 5: 📻 Static Out</span>
+                  <span id="cart-lbl-5" style="font-size:11px; color:var(--primary-color);">Not configured</span>
+                </label>
+                <select id="cart-select-5" class="form-input cart-track-select"><option value="">-- Choose Track --</option></select>
+              </div>
+              <div class="form-group" style="margin-bottom: 0;">
+                <label class="form-label" style="display:flex; justify-content:space-between;">
+                  <span>Slot 6: 🎭 Synth Drop</span>
+                  <span id="cart-lbl-6" style="font-size:11px; color:var(--primary-color);">Not configured</span>
+                </label>
+                <select id="cart-select-6" class="form-input cart-track-select"><option value="">-- Choose Track --</option></select>
+              </div>
+            </div>
+            
+            <button type="submit" class="form-input" style="background: var(--primary-color); color: #000; border: none; font-weight: 600; cursor: pointer; margin-top: 24px;">Save Carts Mapping</button>
+          </form>
+        </div>
       </section>
 
       <!-- SECTION: SYSTEM PERFORMANCE -->
@@ -657,6 +716,23 @@
             <h3 style="font-weight: 600; margin-bottom: 16px;">🌐 Active Network Interfaces</h3>
             <div id="sys-network-interfaces" style="font-size: 12.5px; display: flex; flex-direction: column; gap: 10px; max-height: 330px; overflow-y: auto; padding-right: 4px;">
               <div style="color: var(--text-muted); text-align: center; padding: 20px;">Fetching interfaces...</div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Icecast Service Management Card -->
+        <div class="glass-card" style="margin-bottom: 30px;" id="sys-icecast-control-card">
+          <h3 style="font-weight: 600; margin-bottom: 8px;">❄️ Icecast Service Control</h3>
+          <p style="color: var(--text-muted); font-size: 13px; margin-bottom: 20px;">Manage the Icecast2 streaming server process (Requires ADMIN privileges)</p>
+          
+          <div style="display: flex; gap: 16px; align-items: center; flex-wrap: wrap;">
+            <button id="btn-icecast-restart" class="form-input" style="width: auto; background: rgba(255,170,0,0.1); border-color: rgba(255,170,0,0.25); color: #ffaa00; font-weight: 600; cursor: pointer; padding: 10px 20px;">🔄 Restart Icecast Service</button>
+            <button id="btn-icecast-stop" class="form-input" style="width: auto; background: rgba(255,62,62,0.1); border-color: rgba(255,62,62,0.25); color: #ff3e3e; font-weight: 600; cursor: pointer; padding: 10px 20px;">🛑 Stop Icecast Service</button>
+            <button id="btn-icecast-start" class="form-input" style="width: auto; background: rgba(0,255,102,0.1); border-color: rgba(0,255,102,0.25); color: #00ff66; font-weight: 600; cursor: pointer; padding: 10px 20px;">⚡ Start Icecast Service</button>
+            
+            <div style="margin-left: auto; display: flex; align-items: center; gap: 8px;">
+              <span style="font-size: 12px; color: var(--text-muted);">Current Status:</span>
+              <span id="icecast-status-pill" class="live-pill" style="background: rgba(0,255,102,0.1); border-color: rgba(0,255,102,0.25); color: #00ff66;">ACTIVE</span>
             </div>
           </div>
         </div>

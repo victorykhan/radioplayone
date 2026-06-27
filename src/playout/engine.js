@@ -29,7 +29,7 @@ class PlayoutEngine {
   getIcecastUrl() {
     const host = process.env.ICECAST_HOST || 'localhost';
     const port = process.env.ICECAST_PORT || '8000';
-    const mount = process.env.ICECAST_MOUNT || '/stream';
+    const mount = process.env.ICECAST_MOUNT || '/playout';
     const password = process.env.ICECAST_SOURCE_PASSWORD || 'hackme';
     return `icecast://source:${password}@${host}:${port}${mount}`;
   }
@@ -200,14 +200,33 @@ class PlayoutEngine {
         return playlistTrack.track;
       }
 
-      // Rule 2: Check Fallback Pool items
+      // Rule 2: Check Fallback Pool playlist
+      const fallbackPlaylist = await prisma.playlist.findFirst({
+        where: { name: 'Fallback Pool' },
+        include: {
+          tracks: {
+            orderBy: { position: 'asc' },
+            include: { track: true }
+          }
+        }
+      });
+
+      if (fallbackPlaylist && fallbackPlaylist.tracks.length > 0) {
+        const idx = playoutState.fallbackPlaylistIndex % fallbackPlaylist.tracks.length;
+        playoutState.fallbackPlaylistIndex = idx + 1;
+        const playlistTrack = fallbackPlaylist.tracks[idx];
+        logger.info('Scheduler selected track from Fallback Pool playlist: %s', playlistTrack.track.title);
+        return playlistTrack.track;
+      }
+
+      // Rule 2.5: Legacy Fallback Pool items
       const fallbackItem = await prisma.fallbackPoolItem.findFirst({
         orderBy: { priority: 'desc' },
         include: { track: true }
       });
 
       if (fallbackItem && !fallbackItem.track.isDeleted) {
-        logger.info('Scheduler selected track from Fallback Pool: %s', fallbackItem.track.title);
+        logger.info('Scheduler selected track from legacy Fallback Pool: %s', fallbackItem.track.title);
         return fallbackItem.track;
       }
 
@@ -269,39 +288,49 @@ class PlayoutEngine {
   /**
    * Plays a track, decoding it to raw PCM and writing to the master encoder.
    */
-  async play(track) {
+  /**
+   * Plays a track, decoding it to raw PCM and writing to the master encoder.
+   */
+  async play(track, startFromOffset = null, isCart = false) {
     if (!this.masterEncoder) {
       logger.warn('Master encoder not initialized yet. Delaying track play.');
       return;
     }
 
     this.isPlaying = true;
-    playoutState.setCurrentTrack(track);
-    await this.updatePlayoutQueue();
+    playoutState.isStopped = false;
+    playoutState.isPaused = false;
+
+    // Only set as current track and create PlayLog if it is not a resume or cart play
+    if (startFromOffset === null && !isCart) {
+      playoutState.setCurrentTrack(track);
+      await this.updatePlayoutQueue();
+      
+      // Fetch active listener count to record log
+      let activeListeners = 0;
+      try {
+        activeListeners = await prisma.listenerSession.count({ where: { disconnectedAt: null } });
+      } catch {}
+
+      // Create PlayLog entry
+      this.currentPlayLog = await prisma.playLog.create({
+        data: {
+          trackId: track.id,
+          durationPlayed: track.duration,
+          listenerCount: activeListeners,
+          wasAd: track.fileType === 'AD'
+        }
+      });
+    }
 
     const audioFilePath = path.join(__dirname, '../../storage', track.filePath);
-    logger.info('Playout streaming: "%s" by %s (Duration: %s sec)', track.title, track.artist, track.duration);
+    const startOffset = startFromOffset !== null ? startFromOffset : track.cueStart;
 
-    // Fetch active listener count to record log
-    let activeListeners = 0;
-    try {
-      activeListeners = await prisma.listenerSession.count({ where: { disconnectedAt: null } });
-    } catch {}
-
-    // 1. Create PlayLog entry
-    const playLog = await prisma.playLog.create({
-      data: {
-        trackId: track.id,
-        durationPlayed: track.duration,
-        listenerCount: activeListeners,
-        wasAd: track.fileType === 'AD'
-      }
-    });
+    logger.info('Playout streaming: "%s" by %s (Offset: %ss, Duration: %s sec)', track.title, track.artist, startOffset.toFixed(1), track.duration);
 
     // 2. Decode track to raw PCM and pipe directly to master encoder input
-    // We apply volume trim if configured
     const decoderArgs = [
-      '-ss', String(track.cueStart), // Start offset
+      '-ss', String(startOffset), // Start offset
       '-to', String(track.cueEnd),   // Stop offset
       '-i', audioFilePath,
       '-af', `volume=${track.volumeTrim}`, // apply gain
@@ -311,11 +340,13 @@ class PlayoutEngine {
       'pipe:1'
     ];
 
+    if (this.currentDecoder) {
+      try { this.currentDecoder.kill(); } catch {}
+    }
     this.currentDecoder = spawn('ffmpeg', decoderArgs);
     this.isDecoderActive = true; // Signal keep-alive to pause silence generation
 
     this.currentDecoder.stdout.on('data', (pcmChunk) => {
-      // Pipe raw PCM bytes into master encoder
       if (this.masterEncoder && this.masterEncoder.stdin.writable) {
         this.masterEncoder.stdin.write(pcmChunk);
       }
@@ -325,27 +356,55 @@ class PlayoutEngine {
       logger.debug(`[Decoder FFmpeg] ${data.toString().trim()}`);
     });
 
-    this.currentDecoder.on('close', (code) => {
+    this.currentDecoder.on('close', async (code) => {
       logger.info('Decoder finished playing track: %s (Exit code: %s)', track.title, code);
       this.isDecoderActive = false; // Resume silence keep-alive to maintain Icecast connection
       
-      // Update PlayLog with exact played duration
-      const durationPlayed = Math.round((new Date() - playoutState.startedAt) / 1000);
-      prisma.playLog.update({
-        where: { id: playLog.id },
-        data: { 
-          durationPlayed: Math.min(durationPlayed, track.duration),
-          status: code === 0 ? 'COMPLETED' : 'INTERRUPTED' 
+      // If playout was stopped or paused by command, do not trigger next track on decoder close
+      if (playoutState.isStopped || playoutState.isPaused) {
+        return;
+      }
+
+      // If it was a cart track ending, resume the interrupted track
+      if (isCart) {
+        if (playoutState.interruptedTrack) {
+          const originalTrack = playoutState.interruptedTrack;
+          const resumeOffset = originalTrack.cueStart + playoutState.interruptedElapsed;
+          
+          logger.info('Cart finished. Resuming interrupted track "%s" from offset %ss', originalTrack.title, resumeOffset.toFixed(1));
+          
+          playoutState.interruptedTrack = null;
+          playoutState.interruptedElapsed = 0;
+          playoutState.pausedElapsed = resumeOffset - originalTrack.cueStart;
+          
+          this.play(originalTrack, resumeOffset);
+        } else {
+          this.skip();
         }
-      }).catch(err => logger.error('Failed to update play log: %s', err.message));
+        return;
+      }
+
+      // Update PlayLog with exact played duration
+      if (this.currentPlayLog && startFromOffset === null) {
+        const durationPlayed = Math.round((new Date() - playoutState.startedAt) / 1000);
+        prisma.playLog.update({
+          where: { id: this.currentPlayLog.id },
+          data: { 
+            durationPlayed: Math.min(durationPlayed, track.duration),
+            status: code === 0 ? 'COMPLETED' : 'INTERRUPTED' 
+          }
+        }).catch(err => logger.error('Failed to update play log: %s', err.message));
+      }
     });
 
     // 3. Schedule next track trigger
-    // If crossfade is configured, we trigger earlier
     const fade = track.fadeDuration !== null ? track.fadeDuration : parseFloat(process.env.DEFAULT_FADE_DURATION || '0');
-    const playDuration = (track.cueEnd - track.cueStart) - fade;
+    const playDuration = (track.cueEnd - startOffset) - fade;
 
+    if (this.playoutTimeout) clearTimeout(this.playoutTimeout);
     this.playoutTimeout = setTimeout(async () => {
+      if (isCart) return; // Cart exit handles skips
+
       logger.info('Triggering next scheduled track...');
       const nextTrack = await this.fetchNextTrack();
       if (nextTrack) {
@@ -357,9 +416,99 @@ class PlayoutEngine {
     }, Math.max(100, playDuration * 1000));
   }
 
+  // Stop playout
+  stop() {
+    logger.info('Playout stop requested.');
+    playoutState.isStopped = true;
+    playoutState.isPaused = false;
+    playoutState.currentTrack = null;
+    playoutState.pausedElapsed = 0;
+
+    if (this.playoutTimeout) {
+      clearTimeout(this.playoutTimeout);
+      this.playoutTimeout = null;
+    }
+    if (this.currentDecoder) {
+      this.currentDecoder.kill();
+      this.currentDecoder = null;
+    }
+    this.isPlaying = false;
+    this.isDecoderActive = false; // Let keep-alive feed silence
+  }
+
+  // Pause playout
+  pause() {
+    if (playoutState.isPaused || playoutState.isStopped || !playoutState.currentTrack) {
+      return;
+    }
+    logger.info('Playout pause requested.');
+    
+    // Save progress
+    const elapsed = Math.round((new Date() - playoutState.startedAt) / 1000);
+    playoutState.pausedElapsed = (playoutState.pausedElapsed || 0) + elapsed;
+    playoutState.isPaused = true;
+
+    if (this.playoutTimeout) {
+      clearTimeout(this.playoutTimeout);
+      this.playoutTimeout = null;
+    }
+    if (this.currentDecoder) {
+      this.currentDecoder.kill();
+      this.currentDecoder = null;
+    }
+    this.isDecoderActive = false; // Let keep-alive feed silence
+  }
+
+  // Resume playout
+  resume() {
+    if (!playoutState.isPaused || !playoutState.currentTrack) {
+      return;
+    }
+    logger.info('Playout resume requested.');
+    const track = playoutState.currentTrack;
+    const resumeOffset = track.cueStart + playoutState.pausedElapsed;
+    
+    this.play(track, resumeOffset);
+  }
+
+  // Disconnect from Icecast (Close master encoder source)
+  disconnect() {
+    logger.info('Playout Icecast disconnect requested.');
+    this.stop(); // Stop audio playout first
+    this.stopKeepAlive(); // Stop silence keep alive
+    
+    if (this.masterEncoder) {
+      this.masterEncoder.kill();
+      this.masterEncoder = null;
+    }
+  }
+
+  // Play an Instant Cart
+  async playCart(cartTrack) {
+    logger.info('Instant Cart triggered for track ID %s: %s', cartTrack.id, cartTrack.title);
+    
+    // If a track is currently playing (and we are not already playing a cart), save it for resume
+    if (playoutState.currentTrack && !playoutState.isStopped && !playoutState.isPaused && playoutState.interruptedTrack === null) {
+      playoutState.interruptedTrack = playoutState.currentTrack;
+      const elapsed = Math.round((new Date() - playoutState.startedAt) / 1000);
+      playoutState.interruptedElapsed = (playoutState.pausedElapsed || 0) + elapsed;
+      logger.info('Saving active track "%s" at offset %ss for resumption after cart', playoutState.interruptedTrack.title, playoutState.interruptedElapsed);
+    }
+
+    if (this.playoutTimeout) clearTimeout(this.playoutTimeout);
+    if (this.currentDecoder) this.currentDecoder.kill();
+
+    this.play(cartTrack, null, true);
+  }
+
   // Force skip to next track
   async skip() {
     logger.info('Playout skip requested by operator.');
+    
+    // Clear interrupted track context if skipped
+    playoutState.interruptedTrack = null;
+    playoutState.interruptedElapsed = 0;
+
     if (this.playoutTimeout) clearTimeout(this.playoutTimeout);
     if (this.currentDecoder) this.currentDecoder.kill();
     

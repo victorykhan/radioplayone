@@ -31,8 +31,29 @@
         <header name="Access-Control-Allow-Origin" value="*" />
     </http-headers>
 
+    <!-- Playout Engine Mount -->
+    <mount type="normal">
+        <mount-name>/playout</mount-name>
+        <max-listeners>10</max-listeners>
+        <public>0</public>
+    </mount>
+
+    <!-- Remote DJ Mount -->
+    <mount type="normal">
+        <mount-name>/live</mount-name>
+        <username>dj</username>
+        <password>LiveDJ2026!</password>
+        <fallback-mount>/playout</fallback-mount>
+        <fallback-override>1</fallback-override>
+        <max-listeners>10</max-listeners>
+        <public>1</public>
+    </mount>
+
+    <!-- Public listener Mount -->
     <mount type="normal">
         <mount-name>/radio</mount-name>
+        <fallback-mount>/live</fallback-mount>
+        <fallback-override>1</fallback-override>
         <max-listeners>100</max-listeners>
         <public>1</public>
         <stream-name>VAWAM Radio</stream-name>

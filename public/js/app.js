@@ -188,6 +188,35 @@ function enforceRbac() {
   // 7. Playlist create button
   const createPlaylistBtn = document.getElementById('btn-create-playlist');
   if (createPlaylistBtn) createPlaylistBtn.style.display = (role === 'ADMIN' || role === 'PRODUCER') ? 'inline-block' : 'none';
+
+  // 8. Playout Controls (Stop, Pause, Resume, Disconnect)
+  const pPauseBtn = document.getElementById('btn-playout-pause');
+  const pResumeBtn = document.getElementById('btn-playout-resume');
+  const pStopBtn = document.getElementById('btn-playout-stop');
+  const pDisconnectBtn = document.getElementById('btn-playout-disconnect');
+  
+  if (pPauseBtn) pPauseBtn.style.display = (role !== 'VIEWER') ? 'inline-block' : 'none';
+  if (pResumeBtn) pResumeBtn.style.display = (role !== 'VIEWER') ? 'inline-block' : 'none';
+  if (pStopBtn) pStopBtn.style.display = (role !== 'VIEWER') ? 'inline-block' : 'none';
+  if (pDisconnectBtn) pDisconnectBtn.style.display = (role === 'ADMIN' || role === 'PRODUCER') ? 'inline-block' : 'none';
+
+  // 9. Icecast service controls
+  const icecastCtrlCard = document.getElementById('sys-icecast-control-card');
+  if (icecastCtrlCard) {
+    icecastCtrlCard.style.display = (role === 'ADMIN') ? 'block' : 'none';
+  }
+
+  // 10. Instant Carts Settings
+  const cartsSettingsCard = document.getElementById('settings-carts-card');
+  if (cartsSettingsCard) {
+    cartsSettingsCard.style.display = (role === 'ADMIN' || role === 'PRODUCER') ? 'block' : 'none';
+  }
+
+  // 11. Instant Cart buttons click state
+  document.querySelectorAll('.cart-button').forEach(btn => {
+    btn.disabled = (role === 'VIEWER');
+    if (role === 'VIEWER') btn.style.opacity = '0.5';
+  });
 }
 
 function logout() {
@@ -280,24 +309,37 @@ function pollNowPlaying() {
   fetch(`${API_BASE}/public/now-playing`)
     .then(res => res.json())
     .then(data => {
-      updateStudioDeck(data.now_playing);
+      updateStudioDeck(data.now_playing, data.isPaused, data.isStopped);
       updateQueueList(data.up_next);
     })
     .catch(err => console.error('Now Playing poll error:', err));
 }
 
-function updateStudioDeck(track) {
+function updateStudioDeck(track, isPaused = false, isStopped = false) {
   const deckTitle = document.getElementById('deck-title');
   const deckArtist = document.getElementById('deck-artist');
   const deckTime = document.getElementById('deck-time');
   const deckProgress = document.getElementById('deck-progress');
   const deckCover = document.getElementById('deck-cover');
 
+  // Pause / resume button UI sync
+  const pauseBtn = document.getElementById('btn-playout-pause');
+  const resumeBtn = document.getElementById('btn-playout-resume');
+  if (pauseBtn && resumeBtn) {
+    if (isPaused) {
+      pauseBtn.style.display = 'none';
+      resumeBtn.style.display = 'inline-block';
+    } else {
+      pauseBtn.style.display = 'inline-block';
+      resumeBtn.style.display = 'none';
+    }
+  }
+
   if (nowPlayingTimer) clearInterval(nowPlayingTimer);
 
-  if (!track) {
+  if (!track || isStopped) {
     deckTitle.textContent = 'No Track Playing';
-    deckArtist.textContent = 'Playout offline';
+    deckArtist.textContent = isStopped ? 'Playout stopped' : 'Playout offline';
     deckTime.textContent = '00:00';
     deckProgress.style.width = '0%';
     deckCover.src = '/covers/default-vinyl.svg';
@@ -323,13 +365,15 @@ function updateStudioDeck(track) {
 
   updateProgressBar();
 
-  // Run progress counter locally every second for smoother UI
-  nowPlayingTimer = setInterval(() => {
-    if (currentTrackElapsed < currentTrackDuration) {
-      currentTrackElapsed++;
-      updateProgressBar();
-    }
-  }, 1000);
+  // Run progress counter locally every second for smoother UI, but ONLY if not paused
+  if (!isPaused) {
+    nowPlayingTimer = setInterval(() => {
+      if (currentTrackElapsed < currentTrackDuration) {
+        currentTrackElapsed++;
+        updateProgressBar();
+      }
+    }, 1000);
+  }
 }
 
 function updateQueueList(queue) {
@@ -2326,4 +2370,236 @@ function loadSettingsUsers() {
     })
     .catch(err => showNotification(err.message, 'error'));
   });
+})();
+
+
+// ═══════════════════════════════════════════════════════════════
+// PLAYOUT CONTROLS & INSTANT CARTS HANDLERS
+// ═══════════════════════════════════════════════════════════════
+(function initPlayoutControls() {
+  // 1. Playout Control Buttons
+  const btnStop = document.getElementById('btn-playout-stop');
+  const btnPause = document.getElementById('btn-playout-pause');
+  const btnResume = document.getElementById('btn-playout-resume');
+  const btnDisconnect = document.getElementById('btn-playout-disconnect');
+
+  if (btnStop) {
+    btnStop.addEventListener('click', () => {
+      apiFetch('/playout/stop', { method: 'POST' })
+        .then(() => {
+          showNotification('Playout engine stopped', 'warning');
+          pollNowPlaying();
+        })
+        .catch(err => showNotification(err.message, 'error'));
+    });
+  }
+
+  if (btnPause) {
+    btnPause.addEventListener('click', () => {
+      apiFetch('/playout/pause', { method: 'POST' })
+        .then(() => {
+          showNotification('Playout paused', 'info');
+          pollNowPlaying();
+        })
+        .catch(err => showNotification(err.message, 'error'));
+    });
+  }
+
+  if (btnResume) {
+    btnResume.addEventListener('click', () => {
+      apiFetch('/playout/resume', { method: 'POST' })
+        .then(() => {
+          showNotification('Playout resumed', 'success');
+          pollNowPlaying();
+        })
+        .catch(err => showNotification(err.message, 'error'));
+    });
+  }
+
+  if (btnDisconnect) {
+    btnDisconnect.addEventListener('click', () => {
+      showConfirm('Disconnect Stream Source', 'Are you sure you want to completely disconnect the AutoDJ playout engine from the Icecast server?', () => {
+        apiFetch('/playout/disconnect', { method: 'POST' })
+          .then(() => {
+            showNotification('AutoDJ source disconnected from Icecast', 'error');
+            pollNowPlaying();
+          })
+          .catch(err => showNotification(err.message, 'error'));
+      });
+    });
+  }
+
+  // 2. Icecast Service Control Buttons
+  const btnIcecastRestart = document.getElementById('btn-icecast-restart');
+  const btnIcecastStop = document.getElementById('btn-icecast-stop');
+  const btnIcecastStart = document.getElementById('btn-icecast-start');
+  const icecastPill = document.getElementById('icecast-status-pill');
+
+  if (btnIcecastRestart) {
+    btnIcecastRestart.addEventListener('click', () => {
+      showConfirm('Restart Icecast Service', 'Are you sure you want to restart the Icecast streaming service? Active listener connections will temporarily drop.', () => {
+        if (icecastPill) {
+          icecastPill.textContent = 'RESTARTING...';
+          icecastPill.style.background = 'rgba(255,170,0,0.1)';
+          icecastPill.style.color = '#ffaa00';
+        }
+        apiFetch('/system/icecast/restart', { method: 'POST' })
+          .then(res => {
+            showNotification(res.message, 'success');
+            setTimeout(updateIcecastStatus, 2000);
+          })
+          .catch(err => {
+            showNotification(err.message, 'error');
+            updateIcecastStatus();
+          });
+      });
+    });
+  }
+
+  if (btnIcecastStop) {
+    btnIcecastStop.addEventListener('click', () => {
+      showConfirm('Stop Icecast Service', 'Are you sure you want to STOP the Icecast streaming service? Active streams will go offline.', () => {
+        apiFetch('/system/icecast/stop', { method: 'POST' })
+          .then(res => {
+            showNotification(res.message, 'warning');
+            updateIcecastStatus();
+          })
+          .catch(err => showNotification(err.message, 'error'));
+      });
+    });
+  }
+
+  if (btnIcecastStart) {
+    btnIcecastStart.addEventListener('click', () => {
+      apiFetch('/system/icecast/start', { method: 'POST' })
+        .then(res => {
+          showNotification(res.message, 'success');
+          setTimeout(updateIcecastStatus, 1000);
+        })
+        .catch(err => showNotification(err.message, 'error'));
+    });
+  }
+
+  function updateIcecastStatus() {
+    if (!icecastPill) return;
+    // Query system health / status to update state pill
+    apiFetch('/system/status')
+      .then(data => {
+        // If system status responds, Icecast service is generally reachable or running
+        icecastPill.textContent = 'ACTIVE';
+        icecastPill.style.background = 'rgba(0,255,102,0.1)';
+        icecastPill.style.color = '#00ff66';
+      })
+      .catch(() => {
+        icecastPill.textContent = 'OFFLINE';
+        icecastPill.style.background = 'rgba(255,62,62,0.1)';
+        icecastPill.style.color = '#ff3e3e';
+      });
+  }
+
+  // 3. Instant Carts Trigger Event Bindings
+  document.querySelectorAll('.cart-button[data-slot]').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const slot = btn.dataset.slot;
+      apiFetch(`/playout/cart/${slot}/trigger`, { method: 'POST' })
+        .then(res => {
+          showNotification(res.message, 'success');
+        })
+        .catch(err => {
+          showNotification(err.message, 'warning');
+        });
+    });
+  });
+
+  // 4. Instant Carts Settings Panel loader
+  const cartsForm = document.getElementById('settings-carts-form');
+  if (cartsForm) {
+    cartsForm.addEventListener('submit', (e) => {
+      e.preventDefault();
+      
+      const promises = [];
+      for (let slot = 1; slot <= 6; slot++) {
+        const select = document.getElementById(`cart-select-${slot}`);
+        if (select && select.value) {
+          promises.push(
+            apiFetch('/playout/cart', {
+              method: 'POST',
+              body: { slot, trackId: select.value }
+            })
+          );
+        }
+      }
+
+      if (promises.length === 0) {
+        showNotification('No changes to save.', 'info');
+        return;
+      }
+
+      Promise.all(promises)
+        .then(() => {
+          showNotification('Instant Carts configured successfully', 'success');
+          loadCartsConfig();
+        })
+        .catch(err => showNotification(err.message, 'error'));
+    });
+
+    // Populate carts select dropdowns on dashboard load
+    document.querySelectorAll('.nav-item[data-view="settings"]').forEach(btn => {
+      btn.addEventListener('click', loadCartsConfig);
+    });
+  }
+
+  function loadCartsConfig() {
+    if (!currentUser || (currentUser.role !== 'ADMIN' && currentUser.role !== 'PRODUCER')) return;
+
+    // A. Fetch all tracks to populate selects
+    apiFetch('/tracks?limit=1000')
+      .then(res => {
+        const tracks = Array.isArray(res) ? res : (res.tracks || []);
+        
+        for (let slot = 1; slot <= 6; slot++) {
+          const select = document.getElementById(`cart-select-${slot}`);
+          if (!select) continue;
+          
+          const savedVal = select.value;
+          select.innerHTML = '<option value="">-- Choose Track --</option>';
+          
+          tracks.forEach(track => {
+            const opt = document.createElement('option');
+            opt.value = track.id;
+            opt.textContent = `[${track.fileType}] ${track.title} - ${track.artist || 'Unknown'}`;
+            select.appendChild(opt);
+          });
+          
+          if (savedVal) select.value = savedVal;
+        }
+
+        // B. Fetch configured carts mappings
+        return apiFetch('/playout/cart');
+      })
+      .then(carts => {
+        if (!carts) return;
+        
+        // Reset labels
+        for (let slot = 1; slot <= 6; slot++) {
+          const lbl = document.getElementById(`cart-lbl-${slot}`);
+          if (lbl) {
+            lbl.textContent = 'Not configured';
+            lbl.style.color = 'var(--text-muted)';
+          }
+        }
+
+        carts.forEach(cart => {
+          const select = document.getElementById(`cart-select-${cart.slot}`);
+          if (select) select.value = cart.trackId;
+
+          const lbl = document.getElementById(`cart-lbl-${cart.slot}`);
+          if (lbl && cart.track) {
+            lbl.textContent = cart.track.title;
+            lbl.style.color = 'var(--primary-color)';
+          }
+        });
+      })
+      .catch(err => console.error('Failed to load Instant Carts config:', err));
+  }
 })();

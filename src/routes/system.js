@@ -192,4 +192,64 @@ router.get('/status', ...AUTH, async (req, res) => {
   }
 });
 
+// ──────────────────────────────────────────────────────────────
+// POST /icecast/restart — Restart Icecast system service
+// ──────────────────────────────────────────────────────────────
+router.post('/icecast/restart', authenticateJWT, requireRole(['ADMIN']), (req, res) => {
+  const isLinux = os.platform() === 'linux';
+  if (!isLinux) {
+    logger.info('Icecast restart mocked on non-Linux development environment.');
+    return res.json({ message: 'Icecast service restarted (Development Mock)' });
+  }
+
+  exec('sudo systemctl restart icecast2', (err, stdout, stderr) => {
+    if (err) {
+      logger.error('Failed to restart Icecast service: %s', err.message);
+      return res.status(500).json({ error: 'Failed to restart Icecast service', details: err.message });
+    }
+    logger.info('Icecast service restarted successfully.');
+    res.json({ message: 'Icecast service restarted successfully' });
+  });
+});
+
+// ──────────────────────────────────────────────────────────────
+// POST /icecast/stop — Stop Icecast system service
+// ──────────────────────────────────────────────────────────────
+router.post('/icecast/stop', authenticateJWT, requireRole(['ADMIN']), (req, res) => {
+  const isLinux = os.platform() === 'linux';
+  if (!isLinux) {
+    logger.info('Icecast stop mocked on non-Linux development environment.');
+    return res.json({ message: 'Icecast service stopped (Development Mock)' });
+  }
+
+  exec('sudo systemctl stop icecast2', (err, stdout, stderr) => {
+    if (err) {
+      logger.error('Failed to stop Icecast service: %s', err.message);
+      return res.status(500).json({ error: 'Failed to stop Icecast service', details: err.message });
+    }
+    logger.info('Icecast service stopped successfully.');
+    res.json({ message: 'Icecast service stopped successfully' });
+  });
+});
+
+// ──────────────────────────────────────────────────────────────
+// POST /icecast/start — Start Icecast system service
+// ──────────────────────────────────────────────────────────────
+router.post('/icecast/start', authenticateJWT, requireRole(['ADMIN']), (req, res) => {
+  const isLinux = os.platform() === 'linux';
+  if (!isLinux) {
+    logger.info('Icecast start mocked on non-Linux development environment.');
+    return res.json({ message: 'Icecast service started (Development Mock)' });
+  }
+
+  exec('sudo systemctl start icecast2', (err, stdout, stderr) => {
+    if (err) {
+      logger.error('Failed to start Icecast service: %s', err.message);
+      return res.status(500).json({ error: 'Failed to start Icecast service', details: err.message });
+    }
+    logger.info('Icecast service started successfully.');
+    res.json({ message: 'Icecast service started successfully' });
+  });
+});
+
 export default router;

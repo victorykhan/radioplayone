@@ -35,6 +35,7 @@ model Track {
   fallbackItem FallbackPoolItem?
   playLogs     PlayLog[]
   adTrack      AdTrack?
+  instantCarts InstantCart[]
   
   // Custom Playback Overrides
   volumeTrim   Float              @default(1.0)  // Volume multiplier (e.g. 0.8 to quiet, 1.2 to boost)
@@ -162,4 +163,10 @@ model AdTrack {
   
   track       Track    @relation(fields: [trackId], references: [id], onDelete: Cascade)
   campaign    Campaign @relation(fields: [campaignId], references: [id], onDelete: Cascade)
+}
+
+model InstantCart {
+  slot      Int      @id // 1 to 5
+  trackId   Int
+  track     Track    @relation(fields: [trackId], references: [id], onDelete: Cascade)
 }
