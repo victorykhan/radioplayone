@@ -292,7 +292,7 @@ function updateQueueList(queue) {
     el.innerHTML = `
       <span class="queue-grip" title="Drag to reorder">⠿</span>
       <span class="queue-pos">${index + 1}</span>
-      <img class="queue-cover" src="${item.coverArtUrl || '/images/default-vinyl.svg'}" onerror="this.src='/images/default-vinyl.svg'" alt="">
+      <img class="queue-cover" src="${item.coverArtUrl || '/covers/default-vinyl.svg'}" onerror="this.src='/covers/default-vinyl.svg'" alt="">
       <div class="queue-track-meta">
         <div class="queue-track-title">${icon} ${item.title || 'Unknown'}</div>
         <div class="queue-track-artist">${item.artist || 'Unknown Artist'} · ${dur}</div>
@@ -355,7 +355,7 @@ function updateQueueList(queue) {
 
       // Collect new order and send to API
       const newOrder = [...container.querySelectorAll('.queue-item')].map(i => parseInt(i.dataset.queueId));
-      apiFetch('/queue/reorder', { method: 'POST', body: JSON.stringify({ order: newOrder }) })
+      apiFetch('/queue/reorder', { method: 'POST', body: { order: newOrder } })
         .then(data => updateQueueList(data.queue))
         .catch(err => {
           showNotification('Failed to reorder queue: ' + err.message, 'error');
@@ -405,7 +405,7 @@ function updateQueueList(queue) {
       cueDebounce[qid] = setTimeout(() => {
         apiFetch(`/queue/${qid}/cues`, {
           method: 'PATCH',
-          body: JSON.stringify({ cueStart: cueIn, cueEnd: cueOut })
+          body: { cueStart: cueIn, cueEnd: cueOut }
         })
         .then(() => showNotification('Cue points updated', 'success'))
         .catch(err => showNotification(err.message, 'error'));
@@ -470,11 +470,11 @@ document.getElementById('btn-skip').addEventListener('click', () => {
         }
         tracks.forEach(track => {
           const dur = track.duration ? `${Math.floor(track.duration / 60)}:${String(Math.floor(track.duration % 60)).padStart(2, '0')}` : '';
-          const coverUrl = track.fileHash ? `/covers/${track.fileHash}.jpg` : '/images/default-vinyl.svg';
+          const coverUrl = track.fileHash ? `/covers/${track.fileHash}.jpg` : '/covers/default-vinyl.svg';
           const row = document.createElement('div');
           row.className = 'queue-search-item';
           row.innerHTML = `
-            <img class="search-cover" src="${coverUrl}" onerror="this.src='/images/default-vinyl.svg'">
+            <img class="search-cover" src="${coverUrl}" onerror="this.src='/covers/default-vinyl.svg'">
             <div class="search-meta">
               <div class="search-title">${track.title}</div>
               <div class="search-artist">${track.artist || 'Unknown'} · ${dur}</div>
@@ -482,7 +482,7 @@ document.getElementById('btn-skip').addEventListener('click', () => {
             <span class="search-add">＋ Add</span>
           `;
           row.addEventListener('click', () => {
-            apiFetch('/queue/add', { method: 'POST', body: JSON.stringify({ trackId: track.id }) })
+            apiFetch('/queue/add', { method: 'POST', body: { trackId: track.id } })
               .then(data => {
                 updateQueueList(data.queue);
                 showNotification(`Added "${track.title}" to queue`, 'success');
@@ -1587,7 +1587,7 @@ function setupAudioPlayer() {
           const target = np.coverArtUrl;
           if (!bpCover.src.endsWith(target)) {
             bpCover.src = target;
-            bpCover.onerror = () => { bpCover.src = '/images/default-vinyl.svg'; };
+            bpCover.onerror = () => { bpCover.src = '/covers/default-vinyl.svg'; };
           }
         }
 
@@ -1939,7 +1939,7 @@ function deleteSingleActivityLog(id) {
       const target = np.coverArtUrl;
       if (!coverImg.src.endsWith(target)) {
         coverImg.src = target;
-        coverImg.onerror = () => { coverImg.src = '/images/default-vinyl.svg'; };
+        coverImg.onerror = () => { coverImg.src = '/covers/default-vinyl.svg'; };
       }
     }
 

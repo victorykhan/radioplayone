@@ -346,7 +346,7 @@
       <!-- Track Info -->
       <div class="track-row">
         <div class="cover-wrap">
-          <img id="stream-cover" class="cover-art spinning" src="/images/default-vinyl.svg" alt="Cover Art" onerror="this.src='/images/default-vinyl.svg'">
+          <img id="stream-cover" class="cover-art spinning" src="/covers/default-vinyl.svg" alt="Cover Art" onerror="this.src='/covers/default-vinyl.svg'">
           <span class="eq-dot" id="stream-eq-dot"></span>
         </div>
         <div class="track-meta">
@@ -605,10 +605,10 @@
 
         if (np) {
           // Cover art
-          const newCover = np.coverArtUrl || '/images/default-vinyl.svg';
+          const newCover = np.coverArtUrl || '/covers/default-vinyl.svg';
           if (cover.src !== location.origin + newCover) {
             cover.src = newCover;
-            cover.onerror = () => { cover.src = '/images/default-vinyl.svg'; };
+            cover.onerror = () => { cover.src = '/covers/default-vinyl.svg'; };
           }
 
           // Title & artist with marquee
