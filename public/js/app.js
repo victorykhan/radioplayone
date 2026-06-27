@@ -202,6 +202,12 @@ function switchView(viewName) {
     loadLibraryFolders();
     loadLibraryTracks();
   }
+  
+  if (viewName === 'system') {
+    startSystemMonitoring();
+  } else {
+    stopSystemMonitoring();
+  }
 }
 
 // === STUDIO DESK & NOW PLAYING POLLING ===
@@ -1970,3 +1976,215 @@ function deleteSingleActivityLog(id) {
   setInterval(pollMonitorNP, 4000);
 
 })(); // end initLiveMonitor IIFE
+
+
+// ═══════════════════════════════════════════════════════════════
+// SYSTEM MONITORING MODULE (Task Manager Style)
+// ═══════════════════════════════════════════════════════════════
+let systemPollInterval = null;
+let cpuHistory = Array(30).fill(0);
+let ramHistory = Array(30).fill(0);
+
+function formatBytes(bytes, decimals = 2) {
+  if (bytes === 0) return '0 Bytes';
+  const k = 1024;
+  const dm = decimals < 0 ? 0 : decimals;
+  const sizes = ['Bytes', 'KB', 'MB', 'GB', 'TB'];
+  const i = Math.floor(Math.log(bytes) / Math.log(k));
+  return parseFloat((bytes / Math.pow(k, i)).toFixed(dm)) + ' ' + sizes[i];
+}
+
+function formatUptime(seconds) {
+  const d = Math.floor(seconds / (3600 * 24));
+  const h = Math.floor((seconds % (3600 * 24)) / 3600);
+  const m = Math.floor((seconds % 3600) / 60);
+  const s = Math.floor(seconds % 60);
+  let parts = [];
+  if (d > 0) parts.push(`${d}d`);
+  if (h > 0) parts.push(`${h}h`);
+  if (m > 0) parts.push(`${m}m`);
+  parts.push(`${s}s`);
+  return parts.join(' ');
+}
+
+function startSystemMonitoring() {
+  if (systemPollInterval) clearInterval(systemPollInterval);
+  
+  // Reset history line graphs
+  cpuHistory = Array(30).fill(0);
+  ramHistory = Array(30).fill(0);
+
+  // Initial poll
+  pollSystemStatus();
+  
+  // Set interval to poll every 3 seconds
+  systemPollInterval = setInterval(pollSystemStatus, 3000);
+}
+
+function stopSystemMonitoring() {
+  if (systemPollInterval) {
+    clearInterval(systemPollInterval);
+    systemPollInterval = null;
+  }
+}
+
+async function pollSystemStatus() {
+  try {
+    const data = await apiFetch('/system/status');
+    
+    // 1. Update CPU
+    document.getElementById('sys-cpu-val').textContent = `${data.cpu.usagePercentage}%`;
+    document.getElementById('sys-cpu-cores').textContent = `${data.cpu.cores} Cores`;
+    document.getElementById('sys-cpu-model').textContent = data.cpu.model;
+    
+    // 2. Update RAM
+    document.getElementById('sys-ram-val').textContent = `${data.ram.usagePercentage}%`;
+    document.getElementById('sys-ram-details').textContent = `${(data.ram.used / 1024/1024/1024).toFixed(1)} GB / ${(data.ram.total / 1024/1024/1024).toFixed(1)} GB`;
+    
+    // 3. Update Disk
+    document.getElementById('sys-disk-val').textContent = `${data.disk.usagePercentage}%`;
+    document.getElementById('sys-disk-details').textContent = `${(data.disk.used / 1024/1024/1024).toFixed(1)} GB / ${(data.disk.total / 1024/1024/1024).toFixed(1)} GB`;
+    document.getElementById('sys-disk-progress').style.width = `${data.disk.usagePercentage}%`;
+    document.getElementById('sys-disk-free').textContent = `${(data.disk.free / 1024/1024/1024).toFixed(1)} GB available`;
+    
+    // 4. Update Library Size
+    document.getElementById('sys-lib-size').textContent = formatBytes(data.audioSpace.bytesUsed);
+    document.getElementById('sys-lib-tracks').textContent = `${data.audioSpace.tracksCount} tracks`;
+    
+    // 5. Update OS & Host Info
+    document.getElementById('sys-os-platform').textContent = data.os.platform.toUpperCase();
+    document.getElementById('sys-os-release').textContent = data.os.release;
+    document.getElementById('sys-hostname').textContent = data.network.hostname;
+    document.getElementById('sys-uptime').textContent = formatUptime(data.os.uptime);
+    document.getElementById('sys-process-uptime').textContent = formatUptime(data.process.uptime);
+    document.getElementById('sys-process-rss').textContent = formatBytes(data.process.memoryUsage);
+    
+    // 6. Update Connectivity Status
+    const netStatus = document.getElementById('sys-network-connectivity');
+    if (data.network.connected) {
+      netStatus.className = 'live-pill';
+      netStatus.style.background = 'rgba(0, 255, 102, 0.12)';
+      netStatus.style.borderColor = 'rgba(0, 255, 102, 0.35)';
+      netStatus.style.color = '#00ff66';
+      netStatus.textContent = '● Online / Active';
+    } else {
+      netStatus.className = 'live-pill';
+      netStatus.style.background = 'rgba(255, 60, 60, 0.12)';
+      netStatus.style.borderColor = 'rgba(255, 60, 60, 0.35)';
+      netStatus.style.color = '#ff5c5c';
+      netStatus.textContent = '● Offline / Disconnected';
+    }
+    
+    // 7. Update Network Interfaces list
+    const interfacesContainer = document.getElementById('sys-network-interfaces');
+    interfacesContainer.innerHTML = '';
+    
+    Object.keys(data.network.interfaces).forEach(ifaceName => {
+      const addresses = data.network.interfaces[ifaceName];
+      const activeAddresses = addresses.filter(addr => !addr.internal);
+      if (activeAddresses.length === 0) return;
+      
+      const card = document.createElement('div');
+      card.style.background = 'rgba(255,255,255,0.02)';
+      card.style.border = '1px solid rgba(255,255,255,0.05)';
+      card.style.borderRadius = '6px';
+      card.style.padding = '10px 12px';
+      
+      let addrList = activeAddresses.map(addr => `
+        <div style="display:flex; justify-content:space-between; margin-top:4px; font-family:monospace;">
+          <span style="color:var(--text-muted); font-size:11px;">${addr.family}</span>
+          <span style="color:var(--text-main); font-weight:600; font-size:11.5px;">${addr.address}</span>
+        </div>
+      `).join('');
+      
+      card.innerHTML = `
+        <div style="font-weight:600; color:var(--primary-color); display:flex; align-items:center; gap:6px; font-size:12px;">
+          <span>🌐</span> ${ifaceName}
+        </div>
+        <div style="margin-top:6px;">${addrList}</div>
+      `;
+      interfacesContainer.appendChild(card);
+    });
+    
+    if (interfacesContainer.children.length === 0) {
+      interfacesContainer.innerHTML = '<div style="color: var(--text-muted); text-align: center; padding: 20px;">No public active interfaces found</div>';
+    }
+
+    // 8. Update history and draw charts
+    cpuHistory.push(data.cpu.usagePercentage);
+    cpuHistory.shift();
+    ramHistory.push(data.ram.usagePercentage);
+    ramHistory.shift();
+    
+    drawSystemSparkline('sys-cpu-chart', cpuHistory, 'rgba(0, 240, 255, 1)');
+    drawSystemSparkline('sys-ram-chart', ramHistory, 'rgba(255, 0, 255, 1)');
+    
+  } catch (err) {
+    console.error('Failed to poll system status:', err);
+  }
+}
+
+function drawSystemSparkline(canvasId, history, color) {
+  const canvas = document.getElementById(canvasId);
+  if (!canvas) return;
+  const ctx = canvas.getContext('2d');
+  
+  const dpr = window.devicePixelRatio || 1;
+  const rect = canvas.parentElement.getBoundingClientRect();
+  canvas.width = rect.width * dpr;
+  canvas.height = rect.height * dpr;
+  
+  const W = canvas.width;
+  const H = canvas.height;
+  ctx.clearRect(0, 0, W, H);
+  
+  // Background grid
+  ctx.strokeStyle = 'rgba(255, 255, 255, 0.04)';
+  ctx.lineWidth = 1 * dpr;
+  const gridSpacing = 15 * dpr;
+  for (let x = 0; x < W; x += gridSpacing) {
+    ctx.beginPath();
+    ctx.moveTo(x, 0);
+    ctx.lineTo(x, H);
+    ctx.stroke();
+  }
+  for (let y = 0; y < H; y += gridSpacing) {
+    ctx.beginPath();
+    ctx.moveTo(0, y);
+    ctx.lineTo(W, y);
+    ctx.stroke();
+  }
+  
+  if (history.length < 2) return;
+  const step = W / (history.length - 1);
+  
+  // Fill gradient
+  ctx.beginPath();
+  ctx.moveTo(0, H);
+  for (let i = 0; i < history.length; i++) {
+    const val = history[i] / 100;
+    const x = i * step;
+    const y = H - (val * H * 0.85 + 2 * dpr);
+    ctx.lineTo(x, y);
+  }
+  ctx.lineTo(W, H);
+  ctx.closePath();
+  const grad = ctx.createLinearGradient(0, 0, 0, H);
+  grad.addColorStop(0, color.replace('1)', '0.12)'));
+  grad.addColorStop(1, 'rgba(0,0,0,0)');
+  ctx.fillStyle = grad;
+  ctx.fill();
+  
+  // Outline stroke
+  ctx.beginPath();
+  for (let i = 0; i < history.length; i++) {
+    const val = history[i] / 100;
+    const x = i * step;
+    const y = H - (val * H * 0.85 + 2 * dpr);
+    if (i === 0) ctx.moveTo(x, y);
+    else ctx.lineTo(x, y);
+  }
+  ctx.strokeStyle = color;
+  ctx.lineWidth = 1.5 * dpr;
+  ctx.stroke();
+}
