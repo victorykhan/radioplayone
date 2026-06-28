@@ -257,17 +257,16 @@
                 </div>
               </div>
             </div>
-
             <!-- Spectrum Visualizer -->
             <div class="monitor-vis-wrap" style="position: relative;">
-              <!-- Style Selector overlay button -->
-              <div style="position: absolute; top: 10px; right: 10px; z-index: 10; display: flex; gap: 8px;">
-                <button class="form-input" id="btn-vis-select" style="width: auto; height: 26px; padding: 0 10px; font-size: 10px; margin: 0; background: rgba(18,18,24,0.7); border-color: rgba(255,255,255,0.08); cursor: pointer; color: var(--primary-color); display: flex; align-items: center; gap: 4px; border-radius: 4px; backdrop-filter: blur(4px);">
-                  <span>🎨</span> <span id="lbl-active-vis-style">Classic Bars</span>
-                </button>
-              </div>
               <canvas id="monitor-vis-canvas"></canvas>
               <div class="monitor-vis-hint" id="monitor-vis-hint">Press play to activate live monitor</div>
+              <!-- Style Selector overlay button (placed after canvas and hardware accelerated to stay on top) -->
+              <div style="position: absolute; top: 10px; right: 10px; z-index: 10; display: flex; gap: 8px; transform: translateZ(0); will-change: transform;">
+                <button class="form-input" id="btn-vis-select" style="width: auto; height: 26px; padding: 0 10px; font-size: 10px; margin: 0; background: rgba(18,18,24,0.85); border-color: rgba(255,255,255,0.15); cursor: pointer; color: var(--primary-color); display: flex; align-items: center; gap: 4px; border-radius: 4px; backdrop-filter: blur(4px); box-shadow: 0 2px 8px rgba(0,0,0,0.5);">
+                  <span>🎨</span> <span>Select Visualizer Style: </span><strong id="lbl-active-vis-style">Classic Bars</strong>
+                </button>
+              </div>
             </div>
 
             <!-- Controls row -->
