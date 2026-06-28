@@ -26,7 +26,7 @@ function getRandomDefaultCover() {
       return existing[idx];
     }
   }
-  return '/covers/default-vinyl.png';
+  return '/covers/default-vinyl.svg';
 }
 
 const router = express.Router();

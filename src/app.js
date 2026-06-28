@@ -51,6 +51,18 @@ app.use(morgan('combined', {
 // Serve Public folder (dashboard front-end and dynamic assets)
 app.use(express.static(path.join(__dirname, '../public'), { index: false }));
 
+// Cover art fallback: if a /covers/*.jpg or *.png is missing, serve the default SVG silently
+app.use('/covers', (req, res, next) => {
+  const ext = path.extname(req.path).toLowerCase();
+  if (ext === '.jpg' || ext === '.jpeg' || ext === '.png') {
+    const fallback = path.join(__dirname, '../public/covers/default-vinyl.svg');
+    if (fs.existsSync(fallback)) {
+      return res.sendFile(fallback);
+    }
+  }
+  next();
+});
+
 // Mount API Routes
 app.use('/api/auth', authRoutes);
 app.use('/api/tracks', trackRoutes);
