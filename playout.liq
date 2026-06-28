@@ -34,6 +34,10 @@ playout = source.on_track(playout, on_track_start)
 safety_silence = blank()
 stream = fallback(track_sensitive=false, [playout, safety_silence])
 
+# Master volume control (interactive, adjustable via Telnet: var.set master_vol = 0.75)
+master_vol = interactive.float("master_vol", 1.0)
+stream = amplify(override="", id="master_amplify", master_vol, stream)
+
 # Stream output to local Icecast playout mount
 output.icecast(%mp3(bitrate=128),
   id="playout_output",

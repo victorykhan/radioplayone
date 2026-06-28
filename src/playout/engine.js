@@ -77,6 +77,14 @@ class PlayoutEngine {
         return track;
       }
 
+      // If stopped or paused, return nothing so Liquidsoap plays silence.
+      // Liquidsoap will keep polling next-track-path (delayed by 3s in routes/playout.js).
+      // When resume() or start() is called, it triggers flush_and_skip, 
+      // immediately breaking the silence and fetching the next track here again.
+      if (playoutState.isStopped || playoutState.isPaused) {
+        return null;
+      }
+
       // 2. Check if we need to resume an interrupted track
       if (this.interruptedTrackToResume) {
         const track = this.interruptedTrackToResume;
@@ -387,6 +395,8 @@ class PlayoutEngine {
   // Start playout
   async start() {
     logger.info('Playout start initiated.');
+    playoutState.isStopped = false;
+    playoutState.isPaused = false;
     this.isPlaying = true;
     await this.sendTelnetCommand('playout.flush_and_skip');
   }
@@ -408,6 +418,16 @@ class PlayoutEngine {
       await this.sendTelnetCommand('playout.flush_and_skip');
     } catch (err) {
       logger.error('Failed to connect playout_output: %O', err);
+    }
+  }
+
+  async setVolume(amplify) {
+    // amplify is a float string like "0.7500" from 0.0000 to 1.0000
+    logger.info('Setting master volume to amplify=%s', amplify);
+    try {
+      await this.sendTelnetCommand(`var.set master_vol = ${amplify}`);
+    } catch (err) {
+      logger.error('Failed to set master volume: %O', err);
     }
   }
 }

@@ -151,6 +151,14 @@
                 </div>
               </div>
 
+              <!-- Master Volume Row -->
+              <div style="display: flex; align-items: center; gap: 12px; margin-top: 14px; padding: 10px 14px; background: rgba(255,255,255,0.02); border: 1px solid rgba(255,255,255,0.05); border-radius: 8px;">
+                <span style="font-size: 11px; font-weight: 600; color: var(--text-muted); white-space: nowrap; min-width: 70px;">🔊 Master Vol</span>
+                <input type="range" id="deck-master-vol" min="0" max="100" value="100"
+                  style="flex: 1; -webkit-appearance: none; height: 4px; border-radius: 2px; background: linear-gradient(to right, var(--primary-color) 100%, rgba(255,255,255,0.1) 100%); outline: none; cursor: pointer; border: none; padding: 0;">
+                <span id="deck-master-vol-label" style="font-size: 11px; font-weight: 700; color: var(--primary-color); min-width: 34px; text-align: right;">100%</span>
+              </div>
+
 
 
               <!-- Direct Playout Queue Injector Sub-panel -->
@@ -1160,6 +1168,22 @@
       background: rgba(0, 240, 255, 0.05) !important;
       border-color: var(--primary-color) !important;
       box-shadow: 0 0 15px rgba(0, 240, 255, 0.2);
+    }
+    /* Master volume slider thumb */
+    #deck-master-vol::-webkit-slider-thumb {
+      -webkit-appearance: none;
+      width: 14px; height: 14px;
+      border-radius: 50%;
+      background: var(--primary-color);
+      box-shadow: 0 0 6px var(--primary-glow);
+      cursor: pointer;
+    }
+    #deck-master-vol::-moz-range-thumb {
+      width: 14px; height: 14px;
+      border-radius: 50%;
+      background: var(--primary-color);
+      border: none;
+      cursor: pointer;
     }
   </style>
 

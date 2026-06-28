@@ -76,6 +76,23 @@ router.post('/connect', authenticateJWT, requireRole(['ADMIN', 'PRODUCER']), asy
   }
 });
 
+// Set master output volume (Admin/Producer/DJ)
+router.post('/volume', authenticateJWT, requireRole(['ADMIN', 'PRODUCER', 'DJ']), async (req, res) => {
+  const { volume } = req.body; // 0–100 integer from client
+  if (volume === undefined || isNaN(volume) || volume < 0 || volume > 100) {
+    return res.status(400).json({ error: 'volume must be a number 0–100' });
+  }
+  try {
+    // Liquidsoap uses amplify factor: 1.0 = 100%, 0.0 = mute
+    const amplify = (parseFloat(volume) / 100).toFixed(4);
+    await playoutEngine.setVolume(amplify);
+    res.json({ message: `Master volume set to ${volume}%`, amplify });
+  } catch (error) {
+    logger.error('Failed to set master volume: %O', error);
+    res.status(500).json({ error: 'Failed to set volume' });
+  }
+});
+
 // Manually Load Track into Playout Queue (Up Next) (Admin/Producer/DJ)
 router.post('/load-track', authenticateJWT, requireRole(['ADMIN', 'PRODUCER', 'DJ']), async (req, res) => {
   const { trackId } = req.body;

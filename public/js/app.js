@@ -191,17 +191,24 @@ function enforceRbac() {
   if (createPlaylistBtn) createPlaylistBtn.style.display = (role === 'ADMIN' || role === 'PRODUCER') ? 'inline-block' : 'none';
 
   // 8. Playout Controls (Start, Stop, Pause, Resume, Disconnect)
-  const pStartBtn = document.getElementById('btn-playout-start');
-  const pPauseBtn = document.getElementById('btn-playout-pause');
-  const pResumeBtn = document.getElementById('btn-playout-resume');
+  // Start/Pause/Resume visibility is managed exclusively by updateStudioDeck() based on server state.
+  // Only apply hide-for-VIEWER role; do NOT explicitly show Start/Pause/Resume here.
   const pStopBtn = document.getElementById('btn-playout-stop');
+  const pSkipBtn = document.getElementById('btn-skip');
   const pDisconnectBtn = document.getElementById('btn-playout-disconnect');
-  
-  if (pStartBtn) pStartBtn.style.display = (role !== 'VIEWER') ? 'inline-block' : 'none';
-  if (pPauseBtn) pPauseBtn.style.display = (role !== 'VIEWER') ? 'inline-block' : 'none';
-  if (pResumeBtn) pResumeBtn.style.display = (role !== 'VIEWER') ? 'inline-block' : 'none';
-  if (pStopBtn) pStopBtn.style.display = (role !== 'VIEWER') ? 'inline-block' : 'none';
-  if (pDisconnectBtn) pDisconnectBtn.style.display = (role === 'ADMIN' || role === 'PRODUCER') ? 'inline-block' : 'none';
+  if (role === 'VIEWER') {
+    ['btn-playout-start','btn-playout-pause','btn-playout-resume','btn-playout-stop','btn-skip'].forEach(id => {
+      const el = document.getElementById(id);
+      if (el) el.style.display = 'none';
+    });
+  } else {
+    // Stop and Skip are always visible for operators; Start/Pause/Resume toggled by server state
+    if (pStopBtn) pStopBtn.style.display = 'inline-flex';
+    if (pSkipBtn) pSkipBtn.style.display = 'inline-flex';
+  }
+  if (pDisconnectBtn) {
+    document.getElementById('source-toggle-wrap').style.display = (role === 'ADMIN' || role === 'PRODUCER') ? 'flex' : 'none';
+  }
 
   // 9. Icecast service controls
   const icecastCtrlCard = document.getElementById('sys-icecast-control-card');
@@ -372,16 +379,16 @@ function updateStudioDeck(track, isPaused = false, isStopped = false, isSourceCo
   
   if (pauseBtn && resumeBtn) {
     if (isStopped) {
-      if (startBtn) startBtn.style.display = 'inline-block';
+      if (startBtn) startBtn.style.display = 'inline-flex';
       pauseBtn.style.display = 'none';
       resumeBtn.style.display = 'none';
     } else {
       if (startBtn) startBtn.style.display = 'none';
       if (isPaused) {
         pauseBtn.style.display = 'none';
-        resumeBtn.style.display = 'inline-block';
+        resumeBtn.style.display = 'inline-flex';
       } else {
-        pauseBtn.style.display = 'inline-block';
+        pauseBtn.style.display = 'inline-flex';
         resumeBtn.style.display = 'none';
       }
     }
@@ -2918,6 +2925,21 @@ function loadSettingsUsers() {
             showNotification(err.message, 'error');
           });
       }
+    });
+  }
+
+  // Master Volume Control
+  const masterVolSlider = document.getElementById('deck-master-vol');
+  if (masterVolSlider) {
+    masterVolSlider.addEventListener('change', (e) => {
+      const volume = e.target.value;
+      apiFetch('/playout/volume', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ volume })
+      })
+      .then(res => showNotification(res.message, 'success'))
+      .catch(err => showNotification(err.message, 'error'));
     });
   }
 
