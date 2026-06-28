@@ -2181,11 +2181,11 @@ function setupLiveMonitor() {
     btnCopy.addEventListener('click', () => {
       const url = document.getElementById('monitor-stream-url').value;
       navigator.clipboard.writeText(url).then(() => {
-        showNotification('Stream URL copied to clipboard!', 'success');
+        showNotification('Playout source URL copied to clipboard!', 'success');
       }).catch(() => {
         document.getElementById('monitor-stream-url').select();
         document.execCommand('copy');
-        showNotification('Stream URL copied!', 'success');
+        showNotification('Playout source URL copied!', 'success');
       });
     });
   }
@@ -2231,6 +2231,15 @@ function setupLiveMonitor() {
     currentServerElapsed = elapsed;
 
     const token = localStorage.getItem('jwt_token');
+    const streamUrlInput = document.getElementById('monitor-stream-url');
+    if (streamUrlInput) {
+      if (token && np.id) {
+        streamUrlInput.value = `${window.location.origin}/api/tracks/${np.id}/audio?token=${token}`;
+      } else {
+        streamUrlInput.value = `${window.location.origin}/stream.mp3`;
+      }
+    }
+
     if (token) {
       if (isPlaying && audio) {
         if (np.id !== activeTrackId) {
