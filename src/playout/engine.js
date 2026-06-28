@@ -586,7 +586,7 @@ class PlayoutEngine {
     const silencePath = path.join(storageDir, 'silence.mp3');
     if (!fs.existsSync(silencePath)) {
       logger.info('PlayoutEngine: Generating 5-second safety silence track at %s', silencePath);
-      exec(`ffmpeg -f lavfi -i anullsrc=r=44100:c=2 -t 5 -q:a 9 "${silencePath}"`, (err) => {
+      exec(`ffmpeg -f lavfi -i anullsrc=r=44100:cl=stereo -t 5 -q:a 9 "${silencePath}"`, (err) => {
         if (err) {
           logger.error('PlayoutEngine: Failed to generate silence track: %s', err.message);
         } else {
