@@ -871,6 +871,18 @@
           } catch (hErr) {
             console.warn('Failed to fetch track history:', hErr);
           }
+        } else {
+          cover.src = '/covers/default-vinyl.svg';
+          titleEl.textContent = 'No Track Playing';
+          artistEl.textContent = 'Station Idle';
+          trackType.textContent = '📻 OFFLINE';
+          elapsedEl.textContent = '0:00';
+          durationEl.textContent = '—';
+          progressEl.style.width = '0%';
+          upNextEl.textContent = 'No upcoming tracks';
+          if (nextList) nextList.innerHTML = '<li class="track-item-empty">Queue is empty</li>';
+          nowPlayingData = null;
+          lastTrackId = null;
         }
 
         // Listeners (if Icecast stats available)

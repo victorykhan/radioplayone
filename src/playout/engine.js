@@ -80,11 +80,11 @@ class PlayoutEngine {
         return track;
       }
 
-      // If stopped or paused, return nothing so Liquidsoap plays silence.
-      // Liquidsoap will keep polling next-track-path (delayed by 3s in routes/playout.js).
-      // When resume() or start() is called, it triggers flush_and_skip, 
-      // immediately breaking the silence and fetching the next track here again.
-      if (playoutState.isStopped || playoutState.isPaused) {
+      if (playoutState.isStopped) {
+        playoutState.setCurrentTrack(null);
+        return null;
+      }
+      if (playoutState.isPaused) {
         return null;
       }
 
@@ -126,6 +126,7 @@ class PlayoutEngine {
       }
 
       logger.warn('Liquidsoap: Playout queue is empty.');
+      playoutState.setCurrentTrack(null);
       return null;
 
     } catch (err) {
