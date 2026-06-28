@@ -400,10 +400,14 @@ function updateStudioDeck(track, isPaused = false, isStopped = false, isSourceCo
   currentTrackElapsed = track.elapsed;
 
   const updateProgressBar = () => {
-    const remaining = Math.max(0, currentTrackDuration - currentTrackElapsed);
-    const m = Math.floor(remaining / 60);
-    const s = Math.floor(remaining % 60);
-    deckTime.textContent = `${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`;
+    const elapsed = Math.max(0, Math.min(currentTrackDuration, currentTrackElapsed));
+    const m = Math.floor(elapsed / 60);
+    const s = Math.floor(elapsed % 60);
+    
+    // Format duration to append next to elapsed for full context: "MM:SS / MM:SS"
+    const durM = Math.floor(currentTrackDuration / 60) || 0;
+    const durS = Math.floor(currentTrackDuration % 60) || 0;
+    deckTime.textContent = `${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')} / ${String(durM).padStart(2, '0')}:${String(durS).padStart(2, '0')}`;
 
     const percent = (currentTrackElapsed / currentTrackDuration) * 100;
     deckProgress.style.width = `${Math.min(100, percent)}%`;
