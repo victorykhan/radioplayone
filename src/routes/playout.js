@@ -206,4 +206,38 @@ router.post('/cart/:slot/trigger', authenticateJWT, requireRole(['ADMIN', 'PRODU
   }
 });
 
+// Local endpoint queried by Liquidsoap to fetch the next track path
+router.get('/next-track-path', async (req, res) => {
+  try {
+    const track = await playoutEngine.fetchNextTrackForLiquidsoap();
+    if (!track) {
+      return res.send('');
+    }
+    
+    const cueIn = track.cueStart || 0;
+    const cueOut = track.cueEnd || track.duration || 0;
+    const volume = track.volumeTrim || 1.0;
+    
+    // Construct annotated string for Liquidsoap
+    const annotatedPath = `annotate:liq_cue_in=${cueIn.toFixed(2)},liq_cue_out=${cueOut.toFixed(2)},liq_amplify=${volume.toFixed(2)}:/home/ubuntu/radioplayone/storage/${track.filePath}`;
+    
+    logger.info(`Liquidsoap fetch: ${annotatedPath}`);
+    res.send(annotatedPath);
+  } catch (error) {
+    logger.error('Failed to get next track for Liquidsoap: %O', error);
+    res.status(500).send('error');
+  }
+});
+
+// Local endpoint queried by Liquidsoap when a track begins playing
+router.post('/track-started', async (req, res) => {
+  try {
+    await playoutEngine.onTrackStartedInLiquidsoap();
+    res.json({ status: 'ok' });
+  } catch (error) {
+    logger.error('Failed to handle Liquidsoap track-started event: %O', error);
+    res.status(500).json({ error: 'Internal error' });
+  }
+});
+
 export default router;
