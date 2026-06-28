@@ -89,12 +89,37 @@ router.get('/listeners', authenticateJWT, async (req, res) => {
   }
 });
 
-// 3. Per-Track Retention and Drop-off Analytics
+// 3. Per-Track Retention and Drop-off Analytics (Paginated & Filterable)
 router.get('/tracks-performance', authenticateJWT, async (req, res) => {
   try {
-    // Select tracks with play log metrics
+    const page = parseInt(req.query.page) || 1;
+    const limit = parseInt(req.query.limit) || 100;
+    const { startDate, endDate } = req.query;
+
+    const where = {};
+    if (startDate) {
+      where.playedAt = {
+        ...where.playedAt,
+        gte: new Date(startDate)
+      };
+    }
+    if (endDate) {
+      const end = new Date(endDate);
+      end.setHours(23, 59, 59, 999);
+      where.playedAt = {
+        ...where.playedAt,
+        lte: end
+      };
+    }
+
+    const skip = (page - 1) * limit;
+
+    const total = await prisma.playLog.count({ where });
+
     const playLogs = await prisma.playLog.findMany({
-      take: 100,
+      where,
+      skip,
+      take: limit,
       orderBy: { playedAt: 'desc' },
       include: {
         track: {
@@ -121,7 +146,15 @@ router.get('/tracks-performance', authenticateJWT, async (req, res) => {
       };
     });
 
-    res.json(performance);
+    res.json({
+      data: performance,
+      pagination: {
+        total,
+        page,
+        limit,
+        totalPages: Math.ceil(total / limit)
+      }
+    });
 
   } catch (error) {
     logger.error('Track performance analytics failed: %O', error);

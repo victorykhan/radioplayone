@@ -1,5 +1,34 @@
 // RadioPlay - Client App Controller
 
+// CanvasRenderingContext2D roundRect polyfill
+if (typeof CanvasRenderingContext2D !== 'undefined' && !CanvasRenderingContext2D.prototype.roundRect) {
+  CanvasRenderingContext2D.prototype.roundRect = function (x, y, w, h, radii) {
+    if (!radii) radii = 0;
+    if (typeof radii === 'number') {
+      radii = [radii, radii, radii, radii];
+    } else if (Array.isArray(radii)) {
+      if (radii.length === 1) radii = [radii[0], radii[0], radii[0], radii[0]];
+      else if (radii.length === 2) radii = [radii[0], radii[1], radii[0], radii[1]];
+      else if (radii.length === 3) radii = [radii[0], radii[1], radii[2], radii[1]];
+    } else {
+      radii = [0, 0, 0, 0];
+    }
+    const r0 = radii[0] || 0, r1 = radii[1] || 0, r2 = radii[2] || 0, r3 = radii[3] || 0;
+    this.beginPath();
+    this.moveTo(x + r0, y);
+    this.lineTo(x + w - r1, y);
+    this.quadraticCurveTo(x + w, y, x + w, y + r1);
+    this.lineTo(x + w, y + h - r2);
+    this.quadraticCurveTo(x + w, y + h, x + w - r2, y + h);
+    this.lineTo(x + r3, y + h);
+    this.quadraticCurveTo(x, y + h, x, y + h - r3);
+    this.lineTo(x, y + r0);
+    this.quadraticCurveTo(x, y, x + r0, y);
+    this.closePath();
+    return this;
+  };
+}
+
 const API_BASE = window.location.origin + '/api';
 let jwtToken = localStorage.getItem('jwt');
 let currentUser = null;
@@ -11,6 +40,12 @@ let categoriesList = [];
 let activeFolderId = null; // null = "All Tracks"
 let sortField = 'title';
 let sortOrder = 'asc';
+
+// State variables for Analytics pagination & filtering
+let analyticsPage = 1;
+let analyticsLimit = 100;
+let analyticsStartDate = '';
+let analyticsEndDate = '';
 
 // Chart instances
 let chartHours = null;
@@ -88,6 +123,7 @@ document.addEventListener('DOMContentLoaded', () => {
   setupTrackDrawer();
   setupAudioPlayer();
   setupLiveMonitor();
+  setupAnalyticsControls();
 
   // Poll now playing every 4 seconds
   setInterval(pollNowPlaying, 4000);
@@ -1602,12 +1638,25 @@ function loadAnalytics() {
     })
     .catch(err => console.error('Failed loading geo analytics:', err));
 
-  apiFetch('/analytics/tracks-performance')
-    .then(data => {
+  const url = `/analytics/tracks-performance?page=${analyticsPage}&limit=${analyticsLimit}&startDate=${analyticsStartDate}&endDate=${analyticsEndDate}`;
+  apiFetch(url)
+    .then(res => {
       const tbody = document.getElementById('analytics-table-body');
       tbody.innerHTML = '';
+      
+      const data = res.data || [];
+      const pagination = res.pagination || { total: 0, page: 1, limit: 100, totalPages: 1 };
+      
       if (data.length === 0) {
         tbody.innerHTML = `<tr><td colspan="6" style="text-align: center; color: var(--text-muted); padding: 20px 0;">No playlogs recorded yet.</td></tr>`;
+        
+        // Update pagination UI for empty state
+        const prevBtn = document.getElementById('btn-analytics-prev');
+        const nextBtn = document.getElementById('btn-analytics-next');
+        const pgInfo = document.getElementById('analytics-pagination-info');
+        if (pgInfo) pgInfo.textContent = 'Showing 0-0 of 0 play logs';
+        if (prevBtn) { prevBtn.disabled = true; prevBtn.style.opacity = '0.4'; }
+        if (nextBtn) { nextBtn.disabled = true; nextBtn.style.opacity = '0.4'; }
         return;
       }
 
@@ -1664,8 +1713,87 @@ function loadAnalytics() {
         `;
         tbody.appendChild(tr);
       });
+
+      // Update pagination UI
+      const prevBtn = document.getElementById('btn-analytics-prev');
+      const nextBtn = document.getElementById('btn-analytics-next');
+      const pgInfo = document.getElementById('analytics-pagination-info');
+      
+      const { page, limit, total, totalPages } = pagination;
+      const startIdx = total === 0 ? 0 : (page - 1) * limit + 1;
+      const endIdx = Math.min(page * limit, total);
+      
+      if (pgInfo) {
+        pgInfo.textContent = `Showing ${startIdx}-${endIdx} of ${total} play logs`;
+      }
+      
+      if (prevBtn) {
+        prevBtn.disabled = page <= 1;
+        prevBtn.style.opacity = page <= 1 ? '0.4' : '1';
+        prevBtn.style.cursor = page <= 1 ? 'not-allowed' : 'pointer';
+      }
+      
+      if (nextBtn) {
+        nextBtn.disabled = page >= totalPages;
+        nextBtn.style.opacity = page >= totalPages ? '0.4' : '1';
+        nextBtn.style.cursor = page >= totalPages ? 'not-allowed' : 'pointer';
+      }
     })
     .catch(err => console.error('Failed loading play retention analytics:', err));
+}
+
+function setupAnalyticsControls() {
+  const btnFilter = document.getElementById('btn-analytics-filter');
+  const btnClear = document.getElementById('btn-analytics-clear');
+  const selectLimit = document.getElementById('analytics-limit');
+  const inputStart = document.getElementById('analytics-start-date');
+  const inputEnd = document.getElementById('analytics-end-date');
+  const btnPrev = document.getElementById('btn-analytics-prev');
+  const btnNext = document.getElementById('btn-analytics-next');
+
+  if (btnFilter) {
+    btnFilter.addEventListener('click', () => {
+      analyticsStartDate = inputStart.value;
+      analyticsEndDate = inputEnd.value;
+      analyticsPage = 1;
+      loadAnalytics();
+    });
+  }
+
+  if (btnClear) {
+    btnClear.addEventListener('click', () => {
+      inputStart.value = '';
+      inputEnd.value = '';
+      analyticsStartDate = '';
+      analyticsEndDate = '';
+      analyticsPage = 1;
+      loadAnalytics();
+    });
+  }
+
+  if (selectLimit) {
+    selectLimit.addEventListener('change', () => {
+      analyticsLimit = parseInt(selectLimit.value);
+      analyticsPage = 1;
+      loadAnalytics();
+    });
+  }
+
+  if (btnPrev) {
+    btnPrev.addEventListener('click', () => {
+      if (analyticsPage > 1) {
+        analyticsPage--;
+        loadAnalytics();
+      }
+    });
+  }
+
+  if (btnNext) {
+    btnNext.addEventListener('click', () => {
+      analyticsPage++;
+      loadAnalytics();
+    });
+  }
 }
 
 // === BOTTOM WEB AUDIO PLAYER (persistent footer mini-player) ===
@@ -2111,6 +2239,10 @@ function setupLiveMonitor() {
   const activeStyleLbl  = document.getElementById('lbl-active-vis-style');
 
   let activeVisStyle    = localStorage.getItem('active_vis_style') || 'bars';
+  const validStyles = ['bars', 'wave', 'circular', 'vu', 'blob'];
+  if (!validStyles.includes(activeVisStyle)) {
+    activeVisStyle = 'bars';
+  }
   let tempSelectedStyle = activeVisStyle;
   let demoAnimId        = null;
 
