@@ -209,19 +209,63 @@
     .controls-row {
       display: flex; align-items: center; gap: 16px;
     }
-    .btn-play {
-      width: 52px; height: 52px; border-radius: 50%;
-      border: none; cursor: pointer;
-      background: linear-gradient(135deg, var(--primary), #7b5cff);
-      color: #000; font-size: 20px;
-      display: flex; align-items: center; justify-content: center;
-      box-shadow: 0 0 24px var(--primary-glow), 0 4px 16px rgba(0,0,0,0.4);
-      transition: transform 0.15s ease, box-shadow 0.15s ease;
+    .playback-controls {
+      display: flex;
+      align-items: center;
+      gap: 12px;
       flex-shrink: 0;
     }
-    .btn-play:hover { transform: scale(1.08); box-shadow: 0 0 36px var(--primary-glow), 0 4px 20px rgba(0,0,0,0.5); }
-    .btn-play:active { transform: scale(0.96); }
-    .btn-play svg { width: 22px; height: 22px; fill: #000; }
+    .control-btn {
+      width: 44px;
+      height: 44px;
+      border-radius: 50%;
+      border: none;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      transition: transform 0.15s ease, box-shadow 0.15s ease, background 0.15s ease;
+      box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+    }
+    .play-btn {
+      background: linear-gradient(135deg, var(--primary), #7b5cff);
+      color: #000;
+      box-shadow: 0 0 20px var(--primary-glow), 0 4px 12px rgba(0,0,0,0.3);
+    }
+    .play-btn:hover {
+      transform: scale(1.08);
+      box-shadow: 0 0 28px var(--primary-glow), 0 4px 16px rgba(0,0,0,0.4);
+    }
+    .play-btn:active { transform: scale(0.96); }
+    .pause-btn {
+      background: linear-gradient(135deg, #ff9f43, #ff5252);
+      color: #fff;
+      box-shadow: 0 0 20px rgba(255, 159, 67, 0.35), 0 4px 12px rgba(0,0,0,0.3);
+    }
+    .pause-btn:hover {
+      transform: scale(1.08);
+      box-shadow: 0 0 28px rgba(255, 159, 67, 0.5), 0 4px 16px rgba(0,0,0,0.4);
+    }
+    .pause-btn:active { transform: scale(0.96); }
+    .stop-btn {
+      background: rgba(255, 255, 255, 0.08);
+      border: 1px solid rgba(255, 255, 255, 0.12);
+      color: var(--text);
+    }
+    .stop-btn:hover {
+      transform: scale(1.08);
+      background: rgba(255, 255, 255, 0.16);
+      box-shadow: 0 0 16px rgba(255, 255, 255, 0.1), 0 4px 12px rgba(0,0,0,0.3);
+    }
+    .stop-btn:active { transform: scale(0.96); }
+    .control-btn svg {
+      width: 18px;
+      height: 18px;
+      fill: currentColor;
+    }
+    .play-btn svg {
+      fill: #000;
+    }
 
     .volume-group {
       display: flex; align-items: center; gap: 8px; flex: 1;
@@ -472,9 +516,17 @@
 
       <!-- Controls -->
       <div class="controls-row">
-        <button class="btn-play" id="btn-stream-play" title="Play / Pause">
-          <svg viewBox="0 0 24 24" id="play-icon"><path d="M8 5v14l11-7z"/></svg>
-        </button>
+        <div class="playback-controls">
+          <button class="control-btn play-btn" id="btn-stream-play" title="Play">
+            <svg viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg>
+          </button>
+          <button class="control-btn pause-btn" id="btn-stream-pause" title="Pause" style="display: none;">
+            <svg viewBox="0 0 24 24"><path d="M6 19h4V5H6v14zm8-14v14h4V5h-4z"/></svg>
+          </button>
+          <button class="control-btn stop-btn" id="btn-stream-stop" title="Stop">
+            <svg viewBox="0 0 24 24"><path d="M6 6h12v12H6z"/></svg>
+          </button>
+        </div>
         <div class="volume-group">
           <span class="volume-icon">🔊</span>
           <input type="range" class="vol-slider" id="stream-volume" min="0" max="1" step="0.02" value="0.85">
@@ -530,7 +582,8 @@
     // DOM refs
     const audio       = document.getElementById('live-audio');
     const btnPlay     = document.getElementById('btn-stream-play');
-    const playIcon    = document.getElementById('play-icon');
+    const btnPause    = document.getElementById('btn-stream-pause');
+    const btnStop     = document.getElementById('btn-stream-stop');
     const volSlider   = document.getElementById('stream-volume');
     const cover       = document.getElementById('stream-cover');
     const titleEl     = document.getElementById('stream-title');
@@ -555,12 +608,14 @@
     let audioCtx, analyser, source, animFrameId;
     let nowPlayingData = null;
 
-    // ── SVG icons ──────────────────────────────────────────────
-    const PLAY_PATH  = 'M8 5v14l11-7z';
-    const PAUSE_PATH = 'M6 19h4V5H6v14zm8-14v14h4V5h-4z';
-
-    function setPlayIcon(playing) {
-      playIcon.setAttribute('d', playing ? PAUSE_PATH : PLAY_PATH);
+    function updateButtonStates(playing) {
+      if (playing) {
+        btnPlay.style.display = 'none';
+        btnPause.style.display = 'flex';
+      } else {
+        btnPlay.style.display = 'flex';
+        btnPause.style.display = 'none';
+      }
     }
 
     // ── Volume ─────────────────────────────────────────────────
@@ -650,34 +705,46 @@
     }
     drawIdle();
 
-    // ── Play / Pause toggle ────────────────────────────────────
+    // ── Play / Pause / Stop controls ───────────────────────────
     btnPlay.addEventListener('click', () => {
-      if (!isPlaying) {
-        initAudioContext();
-        if (audioCtx && audioCtx.state === 'suspended') audioCtx.resume();
-        // Force fresh stream load to avoid cached EOF
-        audio.src = STREAM_URL + '?_t=' + Date.now();
-        audio.play().catch(e => console.error('Play error:', e));
-        isPlaying = true;
-        setPlayIcon(true);
-        cover.classList.add('spinning');
-        visHint.style.display = 'none';
-        if (animFrameId) cancelAnimationFrame(animFrameId);
-        drawVisualizer();
-      } else {
-        audio.pause();
-        audio.src = '';
-        isPlaying = false;
-        setPlayIcon(false);
-        cover.classList.remove('spinning');
-        if (animFrameId) cancelAnimationFrame(animFrameId);
-        drawIdle();
-      }
+      initAudioContext();
+      if (audioCtx && audioCtx.state === 'suspended') audioCtx.resume();
+      // Force fresh stream load to avoid cached EOF
+      audio.src = STREAM_URL + '?_t=' + Date.now();
+      audio.play().catch(e => console.error('Play error:', e));
+      isPlaying = true;
+      updateButtonStates(true);
+      cover.classList.add('spinning');
+      visHint.style.display = 'none';
+      if (animFrameId) cancelAnimationFrame(animFrameId);
+      drawVisualizer();
+    });
+
+    btnPause.addEventListener('click', () => {
+      audio.pause();
+      // For live streams, reset src to disconnect and prevent memory cache accumulation
+      audio.src = '';
+      isPlaying = false;
+      updateButtonStates(false);
+      cover.classList.remove('spinning');
+      if (animFrameId) cancelAnimationFrame(animFrameId);
+      drawIdle();
+    });
+
+    btnStop.addEventListener('click', () => {
+      audio.pause();
+      audio.src = '';
+      isPlaying = false;
+      updateButtonStates(false);
+      cover.classList.remove('spinning');
+      if (animFrameId) cancelAnimationFrame(animFrameId);
+      drawIdle();
+      visHint.style.display = 'block';
     });
 
     audio.addEventListener('error', () => {
       isPlaying = false;
-      setPlayIcon(false);
+      updateButtonStates(false);
       cover.classList.remove('spinning');
       document.body.classList.add('offline');
     });
