@@ -228,6 +228,7 @@ router.get('/next-imaging-path', async (req, res) => {
   try {
     const track = await playoutEngine.fetchNextImagingForLiquidsoap();
     if (!track) {
+      await new Promise(resolve => setTimeout(resolve, 3000));
       return res.send('');
     }
     
