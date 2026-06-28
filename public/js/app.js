@@ -332,6 +332,14 @@ function pollNowPlaying() {
     .catch(err => console.error('Now Playing poll error:', err));
 }
 
+function triggerBurstPoll() {
+  pollNowPlaying();
+  setTimeout(pollNowPlaying, 300);
+  setTimeout(pollNowPlaying, 800);
+  setTimeout(pollNowPlaying, 1800);
+  setTimeout(pollNowPlaying, 3500);
+}
+
 function updateStudioDeck(track, isPaused = false, isStopped = false, isSourceConnected = true) {
   const deckTitle = document.getElementById('deck-title');
   const deckArtist = document.getElementById('deck-artist');
@@ -590,7 +598,7 @@ document.getElementById('btn-skip').addEventListener('click', () => {
   apiFetch('/queue/skip', { method: 'POST' })
     .then(() => {
       showNotification('Skipped to next track', 'success');
-      pollNowPlaying();
+      triggerBurstPoll();
     })
     .catch(err => showNotification(err.message, 'error'));
 });
@@ -2084,6 +2092,252 @@ function setupLiveMonitor() {
   }
   drawIdle();
 
+  // ── Visualizer Style Selection & Templates ──────────────────
+  const btnVisSelect    = document.getElementById('btn-vis-select');
+  const modalVis        = document.getElementById('vis-template-modal');
+  const btnCloseVis     = document.getElementById('btn-close-vis-modal');
+  const btnCancelVis    = document.getElementById('btn-cancel-vis');
+  const btnSaveVis      = document.getElementById('btn-save-vis');
+  const visOptions      = document.querySelectorAll('.vis-style-option');
+  const demoCanvas      = document.getElementById('vis-demo-canvas');
+  const demoCtx         = demoCanvas ? demoCanvas.getContext('2d') : null;
+  const activeStyleLbl  = document.getElementById('lbl-active-vis-style');
+
+  let activeVisStyle    = localStorage.getItem('active_vis_style') || 'bars';
+  let tempSelectedStyle = activeVisStyle;
+  let demoAnimId        = null;
+
+  const styleNames = {
+    bars: 'Classic Bars',
+    wave: 'Glow Wave',
+    circular: 'Radial Aura',
+    vu: 'Retro VU',
+    blob: 'Pulsing Blob'
+  };
+
+  if (activeStyleLbl) {
+    activeStyleLbl.textContent = styleNames[activeVisStyle] || 'Classic Bars';
+  }
+
+  visOptions.forEach(opt => {
+    opt.addEventListener('click', () => {
+      visOptions.forEach(o => o.classList.remove('selected'));
+      opt.classList.add('selected');
+      tempSelectedStyle = opt.dataset.style;
+    });
+  });
+
+  if (btnVisSelect) {
+    btnVisSelect.addEventListener('click', () => {
+      tempSelectedStyle = activeVisStyle;
+      visOptions.forEach(opt => {
+        if (opt.dataset.style === activeVisStyle) {
+          opt.classList.add('selected');
+        } else {
+          opt.classList.remove('selected');
+        }
+      });
+      modalVis.style.display = 'flex';
+      startDemoAnimation();
+    });
+  }
+
+  const closeVisModal = () => {
+    modalVis.style.display = 'none';
+    if (demoAnimId) {
+      cancelAnimationFrame(demoAnimId);
+      demoAnimId = null;
+    }
+  };
+
+  if (btnCloseVis) btnCloseVis.addEventListener('click', closeVisModal);
+  if (btnCancelVis) btnCancelVis.addEventListener('click', closeVisModal);
+
+  if (btnSaveVis) {
+    btnSaveVis.addEventListener('click', () => {
+      activeVisStyle = tempSelectedStyle;
+      localStorage.setItem('active_vis_style', activeVisStyle);
+      if (activeStyleLbl) {
+        activeStyleLbl.textContent = styleNames[activeVisStyle] || 'Classic Bars';
+      }
+      closeVisModal();
+    });
+  }
+
+  // Draw a frame for any given style
+  function drawVisualizerFrame(styleName, ctx, W, H, data, bufLen, dpr) {
+    if (styleName === 'wave') {
+      ctx.lineWidth = 3.5 * dpr;
+      ctx.strokeStyle = 'rgba(0, 240, 255, 0.95)';
+      ctx.shadowBlur = 10 * dpr;
+      ctx.shadowColor = 'rgba(0, 240, 255, 0.6)';
+      ctx.beginPath();
+      const sliceW = W / bufLen;
+      let x = 0;
+      for (let i = 0; i < bufLen; i++) {
+        const v = data[i] / 128.0;
+        const y = (v * H) / 2;
+        if (i === 0) ctx.moveTo(x, y);
+        else ctx.lineTo(x, y);
+        x += sliceW;
+      }
+      ctx.stroke();
+      ctx.shadowBlur = 0;
+      return;
+    }
+
+    if (styleName === 'circular') {
+      const centerX = W / 2;
+      const centerY = H / 2;
+      const baseRadius = Math.min(W, H) * 0.22;
+      const numBars = Math.min(bufLen, 64);
+      const rotOffset = (Date.now() / 12000) * 2 * Math.PI;
+      
+      for (let i = 0; i < numBars; i++) {
+        const val = data[i] / 255;
+        const barLen = Math.max(3 * dpr, val * Math.min(W, H) * 0.35);
+        const angle = (i / numBars) * 2 * Math.PI + rotOffset;
+        
+        const startX = centerX + Math.cos(angle) * baseRadius;
+        const startY = centerY + Math.sin(angle) * baseRadius;
+        const endX = centerX + Math.cos(angle) * (baseRadius + barLen);
+        const endY = centerY + Math.sin(angle) * (baseRadius + barLen);
+        
+        const hue = 185 + (i / numBars) * 110;
+        ctx.strokeStyle = `hsla(${hue}, 100%, 65%, 0.95)`;
+        ctx.lineWidth = Math.max(1.5 * dpr, (W / numBars) * 0.5);
+        ctx.lineCap = 'round';
+        ctx.beginPath();
+        ctx.moveTo(startX, startY);
+        ctx.lineTo(endX, endY);
+        ctx.stroke();
+      }
+      return;
+    }
+
+    if (styleName === 'vu') {
+      const numColumns = Math.min(bufLen, 24);
+      const colGap = 4 * dpr;
+      const colW = (W - (numColumns - 1) * colGap) / numColumns;
+      const numBlocks = 12;
+      const blockH = (H - (numBlocks - 1) * 2 * dpr) / numBlocks;
+      
+      for (let i = 0; i < numColumns; i++) {
+        const val = data[i] / 255;
+        const activeBlocks = Math.floor(val * numBlocks);
+        const x = i * (colW + colGap);
+        
+        for (let b = 0; b < numBlocks; b++) {
+          const y = H - (b * (blockH + 2 * dpr)) - blockH;
+          let fill = 'rgba(255, 255, 255, 0.04)';
+          if (b < activeBlocks) {
+            const ratio = b / numBlocks;
+            if (ratio < 0.6) fill = '#00ff66';
+            else if (ratio < 0.85) fill = '#ffaa00';
+            else fill = '#ff3e3e';
+          }
+          ctx.fillStyle = fill;
+          ctx.beginPath();
+          ctx.roundRect(x, y, colW, blockH, 1 * dpr);
+          ctx.fill();
+        }
+      }
+      return;
+    }
+
+    if (styleName === 'blob') {
+      let sum = 0;
+      for (let i = 0; i < bufLen; i++) sum += data[i];
+      const avg = sum / bufLen / 255;
+      const cX = W / 2;
+      const cY = H / 2;
+      const baseR = Math.min(W, H) * 0.26;
+      const scaleR = baseR + avg * Math.min(W, H) * 0.28;
+      
+      const grad = ctx.createRadialGradient(cX, cY, baseR * 0.4, cX, cY, scaleR * 1.3);
+      grad.addColorStop(0, 'rgba(0, 240, 255, 0.35)');
+      grad.addColorStop(0.5, 'rgba(112, 0, 255, 0.15)');
+      grad.addColorStop(1, 'rgba(0, 0, 0, 0)');
+      ctx.fillStyle = grad;
+      ctx.beginPath();
+      ctx.arc(cX, cY, scaleR * 1.3, 0, 2 * Math.PI);
+      ctx.fill();
+      
+      ctx.strokeStyle = '#00f0ff';
+      ctx.lineWidth = 3 * dpr;
+      ctx.shadowBlur = 12 * dpr;
+      ctx.shadowColor = '#00f0ff';
+      ctx.beginPath();
+      const points = 16;
+      for (let i = 0; i < points; i++) {
+        const angle = (i / points) * 2 * Math.PI;
+        const freqVal = data[i % bufLen] / 255;
+        const r = scaleR + Math.sin(angle * 4 + Date.now() / 400) * freqVal * 10 * dpr;
+        const x = cX + Math.cos(angle) * r;
+        const y = cY + Math.sin(angle) * r;
+        if (i === 0) ctx.moveTo(x, y);
+        else ctx.lineTo(x, y);
+      }
+      ctx.closePath();
+      ctx.stroke();
+      ctx.shadowBlur = 0;
+      return;
+    }
+
+    // Default: Bars
+    const barCount = Math.min(bufLen, 52);
+    const gap = 2.5 * dpr;
+    const barW = (W - (barCount - 1) * gap) / barCount;
+    for (let i = 0; i < barCount; i++) {
+      const val = data[i] / 255;
+      const barH = Math.max(2 * dpr, val * H * 0.92);
+      const x = i * (barW + gap);
+      const y = H - barH;
+      const hue = 185 + (i / barCount) * 110;
+      const grad = ctx.createLinearGradient(0, y, 0, H);
+      grad.addColorStop(0, `hsla(${hue},100%,65%,0.9)`);
+      grad.addColorStop(1, `hsla(${hue},100%,45%,0.2)`);
+      ctx.fillStyle = grad;
+      ctx.beginPath();
+      ctx.roundRect(x, y, barW, barH, [Math.min(barW / 2, 2.5 * dpr), Math.min(barW / 2, 2.5 * dpr), 0, 0]);
+      ctx.fill();
+    }
+  }
+
+  // Simulated visual demo for selection popup
+  function startDemoAnimation() {
+    if (demoAnimId) cancelAnimationFrame(demoAnimId);
+    
+    const dpr = window.devicePixelRatio || 1;
+    demoCanvas.width = demoCanvas.clientWidth * dpr;
+    demoCanvas.height = demoCanvas.clientHeight * dpr;
+
+    const bufLen = 64;
+    const data = new Uint8Array(bufLen);
+
+    function tick() {
+      demoAnimId = requestAnimationFrame(tick);
+      demoCtx.clearRect(0, 0, demoCanvas.width, demoCanvas.height);
+
+      const t = Date.now() / 1000;
+      for (let i = 0; i < bufLen; i++) {
+        if (tempSelectedStyle === 'wave') {
+          const wave1 = Math.sin(i * 0.2 + t * 5) * 35;
+          const wave2 = Math.cos(i * 0.4 - t * 2) * 15;
+          data[i] = 128 + ((wave1 + wave2) / 50) * 40;
+        } else {
+          const bass = Math.sin(t * 8) * 0.4 + 0.6;
+          const decay = Math.exp(-i * 0.05);
+          const noise = Math.sin(i * 0.8 + t * 12) * 0.15 + 0.15;
+          data[i] = Math.max(10, (bass * decay + noise) * 210);
+        }
+      }
+
+      drawVisualizerFrame(tempSelectedStyle, demoCtx, demoCanvas.width, demoCanvas.height, data, bufLen, dpr);
+    }
+    tick();
+  }
+
   // ── Live visualizer ─────────────────────────────────────────
   function drawLive() {
     if (!isPlaying) return;
@@ -2094,34 +2348,24 @@ function setupLiveMonitor() {
 
     const bufLen = analyser.frequencyBinCount;
     const data   = new Uint8Array(bufLen);
-    analyser.getByteFrequencyData(data);
-
-    const barCount = Math.min(bufLen, 52);
-    const dpr = window.devicePixelRatio || 1;
-    const gap  = 2.5 * dpr;
-    const barW = (W - (barCount - 1) * gap) / barCount;
-
-    for (let i = 0; i < barCount; i++) {
-      const val  = data[i] / 255;
-      const barH = Math.max(2 * dpr, val * H * 0.92);
-      const x    = i * (barW + gap);
-      const y    = H - barH;
-      const hue  = 185 + (i / barCount) * 110;
-
-      const grad = ctx2d.createLinearGradient(0, y, 0, H);
-      grad.addColorStop(0, `hsla(${hue},100%,65%,0.9)`);
-      grad.addColorStop(1, `hsla(${hue},100%,45%,0.2)`);
-      ctx2d.fillStyle = grad;
-      ctx2d.beginPath();
-      ctx2d.roundRect(x, y, barW, barH, [Math.min(barW / 2, 2.5 * dpr), Math.min(barW / 2, 2.5 * dpr), 0, 0]);
-      ctx2d.fill();
+    
+    if (activeVisStyle === 'wave') {
+      analyser.getByteTimeDomainData(data);
+    } else {
+      analyser.getByteFrequencyData(data);
     }
+
+    const dpr = window.devicePixelRatio || 1;
+    drawVisualizerFrame(activeVisStyle, ctx2d, W, H, data, bufLen, dpr);
   }
 
   // ── Web Audio setup ─────────────────────────────────────────
   function initAudioCtx() {
     if (audioCtx) return;
     try {
+      // Force CORS compliance on audio element for secure cross-origin streaming
+      audio.crossOrigin = 'anonymous';
+      
       audioCtx = new (window.AudioContext || window.webkitAudioContext)();
       analyser = audioCtx.createAnalyser();
       analyser.fftSize = 128;
@@ -2589,7 +2833,7 @@ function loadSettingsUsers() {
       apiFetch('/playout/start', { method: 'POST' })
         .then(() => {
           showNotification('Playout engine started', 'success');
-          pollNowPlaying();
+          triggerBurstPoll();
         })
         .catch(err => showNotification(err.message, 'error'));
     });
@@ -2600,7 +2844,7 @@ function loadSettingsUsers() {
       apiFetch('/playout/stop', { method: 'POST' })
         .then(() => {
           showNotification('Playout engine stopped', 'warning');
-          pollNowPlaying();
+          triggerBurstPoll();
         })
         .catch(err => showNotification(err.message, 'error'));
     });
@@ -2611,7 +2855,7 @@ function loadSettingsUsers() {
       apiFetch('/playout/pause', { method: 'POST' })
         .then(() => {
           showNotification('Playout paused', 'info');
-          pollNowPlaying();
+          triggerBurstPoll();
         })
         .catch(err => showNotification(err.message, 'error'));
     });
@@ -2622,7 +2866,7 @@ function loadSettingsUsers() {
       apiFetch('/playout/resume', { method: 'POST' })
         .then(() => {
           showNotification('Playout resumed', 'success');
-          pollNowPlaying();
+          triggerBurstPoll();
         })
         .catch(err => showNotification(err.message, 'error'));
     });
@@ -2648,7 +2892,7 @@ function loadSettingsUsers() {
                 lbl.style.textShadow = '0 0 4px rgba(255,62,62,0.2)';
               }
               showNotification('AutoDJ source disconnected from Icecast', 'warning');
-              pollNowPlaying();
+              triggerBurstPoll();
             })
             .catch(err => {
               showNotification(err.message, 'error');
@@ -2668,7 +2912,7 @@ function loadSettingsUsers() {
               lbl.style.textShadow = '0 0 4px rgba(0,255,102,0.2)';
             }
             showNotification('AutoDJ source connected to Icecast', 'success');
-            pollNowPlaying();
+            triggerBurstPoll();
           })
           .catch(err => {
             showNotification(err.message, 'error');

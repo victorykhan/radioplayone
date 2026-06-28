@@ -251,7 +251,13 @@
             </div>
 
             <!-- Spectrum Visualizer -->
-            <div class="monitor-vis-wrap">
+            <div class="monitor-vis-wrap" style="position: relative;">
+              <!-- Style Selector overlay button -->
+              <div style="position: absolute; top: 10px; right: 10px; z-index: 10; display: flex; gap: 8px;">
+                <button class="form-input" id="btn-vis-select" style="width: auto; height: 26px; padding: 0 10px; font-size: 10px; margin: 0; background: rgba(18,18,24,0.7); border-color: rgba(255,255,255,0.08); cursor: pointer; color: var(--primary-color); display: flex; align-items: center; gap: 4px; border-radius: 4px; backdrop-filter: blur(4px);">
+                  <span>🎨</span> <span id="lbl-active-vis-style">Classic Bars</span>
+                </button>
+              </div>
               <canvas id="monitor-vis-canvas"></canvas>
               <div class="monitor-vis-hint" id="monitor-vis-hint">Press play to activate live monitor</div>
             </div>
@@ -1143,6 +1149,65 @@
       <div id="bg-upload-progress" style="width: 0%; height: 100%; background: linear-gradient(90deg, var(--primary-color), var(--secondary-color)); transition: width 0.2s;"></div>
     </div>
     <div id="bg-upload-text" style="font-size: 10px; color: var(--text-muted);">0% uploaded</div>
+  </div>
+
+  <style>
+    .vis-style-option:hover {
+      background: rgba(255, 255, 255, 0.05) !important;
+      border-color: rgba(255, 255, 255, 0.2) !important;
+    }
+    .vis-style-option.selected {
+      background: rgba(0, 240, 255, 0.05) !important;
+      border-color: var(--primary-color) !important;
+      box-shadow: 0 0 15px rgba(0, 240, 255, 0.2);
+    }
+  </style>
+
+  <!-- Visualizer Selection Modal -->
+  <div id="vis-template-modal" class="modal-overlay" style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.8); z-index: 10005; align-items: center; justify-content: center; backdrop-filter: blur(10px);">
+    <div class="glass-card" style="width: 100%; max-width: 600px; padding: 26px; border-radius: 16px; box-shadow: 0 20px 50px rgba(0,0,0,0.8); border: 1px solid rgba(255,255,255,0.08); background: rgba(18,18,24,0.98);">
+      <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px;">
+        <h3 style="font-weight: 600; font-size: 18px; margin: 0; color: var(--primary-color); display: flex; align-items: center; gap: 8px;">
+          <span>🎨</span> Select Visualizer Style
+        </h3>
+        <button class="form-input" id="btn-close-vis-modal" style="width: auto; height: 28px; padding: 0 10px; margin: 0; cursor: pointer; background: rgba(255,255,255,0.05); border-color: rgba(255,255,255,0.1); color: var(--text-main); font-weight: bold; border-radius: 4px;">✕</button>
+      </div>
+
+      <!-- Preview Section -->
+      <div style="background: rgba(0,0,0,0.4); border: 1px solid rgba(255,255,255,0.06); border-radius: 10px; height: 130px; position: relative; margin-bottom: 20px; overflow: hidden;">
+        <canvas id="vis-demo-canvas" style="width: 100%; height: 100%; display: block;"></canvas>
+        <div style="position: absolute; bottom: 8px; left: 12px; font-size: 9px; color: var(--text-muted); background: rgba(0,0,0,0.75); padding: 2px 6px; border-radius: 4px; letter-spacing: 0.5px; border: 1px solid rgba(255,255,255,0.05);">SIMULATED DEMO PREVIEW</div>
+      </div>
+
+      <!-- Styles Grid -->
+      <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 20px;">
+        <div class="vis-style-option selected" data-style="bars" style="background: rgba(255,255,255,0.015); border: 1px solid rgba(255,255,255,0.08); padding: 10px 14px; border-radius: 8px; cursor: pointer; transition: all 0.15s;">
+          <h4 style="font-size: 13px; font-weight: 600; margin: 0 0 2px 0; color: #fff;">📊 Classic Neon Bars</h4>
+          <p style="font-size: 10px; color: var(--text-muted); margin: 0; line-height: 1.3;">Traditional rising equalizer frequency bands with vibrant color flow.</p>
+        </div>
+        <div class="vis-style-option" data-style="wave" style="background: rgba(255,255,255,0.015); border: 1px solid rgba(255,255,255,0.08); padding: 10px 14px; border-radius: 8px; cursor: pointer; transition: all 0.15s;">
+          <h4 style="font-size: 13px; font-weight: 600; margin: 0 0 2px 0; color: #fff;">〰️ Digital Glow Wave</h4>
+          <p style="font-size: 10px; color: var(--text-muted); margin: 0; line-height: 1.3;">Oscilloscope wave reflecting time-domain audio frequency oscillation.</p>
+        </div>
+        <div class="vis-style-option" data-style="circular" style="background: rgba(255,255,255,0.015); border: 1px solid rgba(255,255,255,0.08); padding: 10px 14px; border-radius: 8px; cursor: pointer; transition: all 0.15s;">
+          <h4 style="font-size: 13px; font-weight: 600; margin: 0 0 2px 0; color: #fff;">⭕ Radial Aura Spectrum</h4>
+          <p style="font-size: 10px; color: var(--text-muted); margin: 0; line-height: 1.3;">Equally spaced circular rays expanding outwards in a rotating aura.</p>
+        </div>
+        <div class="vis-style-option" data-style="vu" style="background: rgba(255,255,255,0.015); border: 1px solid rgba(255,255,255,0.08); padding: 10px 14px; border-radius: 8px; cursor: pointer; transition: all 0.15s;">
+          <h4 style="font-size: 13px; font-weight: 600; margin: 0 0 2px 0; color: #fff;">🚥 Retro VU Blocks</h4>
+          <p style="font-size: 10px; color: var(--text-muted); margin: 0; line-height: 1.3;">Stacked color segment grid bouncing vertically like a retro hardware desk.</p>
+        </div>
+        <div class="vis-style-option" data-style="blob" style="background: rgba(255,255,255,0.015); border: 1px solid rgba(255,255,255,0.08); padding: 10px 14px; border-radius: 8px; cursor: pointer; transition: all 0.15s; grid-column: span 2;">
+          <h4 style="font-size: 13px; font-weight: 600; margin: 0 0 2px 0; color: #fff;">🔮 Orbital Pulsing Blob</h4>
+          <p style="font-size: 10px; color: var(--text-muted); margin: 0; line-height: 1.3;">Dynamic organic blob shape in the center pulsating outward based on sound pressure.</p>
+        </div>
+      </div>
+
+      <div style="display: flex; gap: 12px; justify-content: flex-end;">
+        <button class="form-input" id="btn-cancel-vis" style="width: auto; height: 32px; padding: 0 16px; margin: 0; background: transparent; border-color: rgba(255,255,255,0.1); color: var(--text-main); cursor: pointer; font-size: 11px;">Cancel</button>
+        <button class="form-input" id="btn-save-vis" style="width: auto; height: 32px; padding: 0 16px; margin: 0; background: var(--primary-color); border-color: var(--primary-color); color: #000; font-weight: 600; cursor: pointer; font-size: 11px;">Apply Style</button>
+      </div>
+    </div>
   </div>
 
   <div id="toast-container"></div>

@@ -630,6 +630,7 @@ router.get('/:id/audio', authenticateJWT, async (req, res) => {
       return res.status(404).json({ error: 'Audio file not found on disk' });
     }
 
+    res.setHeader('Access-Control-Allow-Origin', '*');
     res.setHeader('Content-Type', 'audio/mpeg');
     res.sendFile(fullPath);
   } catch (error) {
