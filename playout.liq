@@ -37,12 +37,11 @@ imaging = request.dynamic(id="imaging", get_next_imaging)
 # Dynamic interactive queue for manual soundboard triggers
 carts = request.queue(id="carts_queue")
 
-# === 4. MIXING & DUCKING LAYERS ===
 # Mix A: Duck music to 15% gain when imaging/sweeper plays
-mixed_stream = smooth_add(normal=music, special=imaging, p=0.15, fade_in=0.5, fade_out=0.5)
+mixed_stream = smooth_add(delay=0.5, p=0.15, music, imaging)
 
 # Mix B: Duck the resulting program to 25% gain when manual instant carts play
-mixed_stream = smooth_add(normal=mixed_stream, special=carts, p=0.25, fade_in=0.2, fade_out=0.4)
+mixed_stream = smooth_add(delay=0.4, p=0.25, mixed_stream, carts)
 
 # Fallback safety silence in case of empty sources
 safety_silence = blank()
