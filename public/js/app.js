@@ -866,6 +866,7 @@ function renderLibraryTracks() {
       <td><span style="background: rgba(255,255,255,0.06); padding: 4px 8px; border-radius: 4px; font-size: 11px;">${typeLabel}</span></td>
       <td>${dateStr}</td>
       <td>
+        <button class="control-btn btn-track-analytics" data-id="${track.id}" style="font-size: 14px; margin-right: 10px;" title="View Track Analytics">📈</button>
         <button class="control-btn btn-edit-track" data-id="${track.id}" style="font-size: 14px; margin-right: 10px;">✏️</button>
         <button class="control-btn btn-delete-track" data-id="${track.id}" style="font-size: 14px; color: #ff5252;">🗑️</button>
       </td>
@@ -883,6 +884,11 @@ function renderLibraryTracks() {
     tr.querySelector('.btn-play-preview').addEventListener('click', (e) => {
       e.stopPropagation();
       toggleTrackPreview(track.id, e.currentTarget);
+    });
+
+    tr.querySelector('.btn-track-analytics').addEventListener('click', (e) => {
+      e.stopPropagation();
+      window.open(`/track-analytics.html?id=${track.id}`, '_blank');
     });
 
     tr.querySelector('.btn-edit-track').addEventListener('click', (e) => {

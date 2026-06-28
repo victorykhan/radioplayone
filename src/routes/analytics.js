@@ -238,4 +238,97 @@ router.get('/campaign/:id/report', authenticateJWT, async (req, res) => {
   }
 });
 
+// 5. Per-Track Analytics
+router.get('/track/:id', authenticateJWT, async (req, res) => {
+  const trackId = parseInt(req.params.id);
+  const { startDate, endDate } = req.query;
+
+  try {
+    const where = { trackId };
+    if (startDate) {
+      where.playedAt = { ...where.playedAt, gte: new Date(startDate) };
+    }
+    if (endDate) {
+      const end = new Date(endDate);
+      end.setHours(23, 59, 59, 999);
+      where.playedAt = { ...where.playedAt, lte: end };
+    }
+
+    const playLogs = await prisma.playLog.findMany({
+      where,
+      orderBy: { playedAt: 'desc' },
+      include: {
+        track: {
+          select: { title: true, artist: true, duration: true }
+        }
+      }
+    });
+
+    if (playLogs.length === 0) {
+      const track = await prisma.track.findUnique({
+        where: { id: trackId },
+        select: { title: true, artist: true }
+      });
+      if (!track) return res.status(404).json({ error: 'Track not found' });
+      return res.json({
+        track,
+        stats: {
+          totalPlays: 0,
+          totalSeconds: 0,
+          totalMinutes: 0,
+          totalHours: 0,
+          avgListeners: 0
+        },
+        history: []
+      });
+    }
+
+    const trackInfo = playLogs[0].track;
+
+    let totalSeconds = 0;
+    let totalListeners = 0;
+
+    const history = playLogs.map(log => {
+      totalSeconds += log.durationPlayed || 0;
+      totalListeners += log.listenersStart || 0;
+      let retention = 100.0;
+      if (log.listenersStart > 0) {
+        retention = (log.listenersEnd / log.listenersStart) * 100.0;
+      }
+      return {
+        id: log.id,
+        playedAt: log.playedAt,
+        durationPlayed: log.durationPlayed,
+        listenersStart: log.listenersStart,
+        listenersEnd: log.listenersEnd,
+        retentionRate: parseFloat(retention.toFixed(1))
+      };
+    });
+
+    const totalPlays = playLogs.length;
+    const avgListeners = totalPlays > 0 ? (totalListeners / totalPlays) : 0;
+
+    res.json({
+      track: {
+        id: trackId,
+        title: trackInfo.title,
+        artist: trackInfo.artist
+      },
+      stats: {
+        totalPlays,
+        totalSeconds,
+        totalMinutes: parseFloat((totalSeconds / 60).toFixed(1)),
+        totalHours: parseFloat((totalSeconds / 3600).toFixed(2)),
+        avgListeners: parseFloat(avgListeners.toFixed(1))
+      },
+      history: history.reverse() // Chronological order for chart
+    });
+
+  } catch (error) {
+    logger.error('Failed to get per-track analytics: %O', error);
+    res.status(500).json({ error: 'Failed to retrieve track stats' });
+  }
+});
+
 export default router;
+

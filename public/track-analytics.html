@@ -1,0 +1,538 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Track Broadcasting Analytics - RadioPlay</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <style>
+    :root {
+      --bg-main: #060608;
+      --bg-card: rgba(18, 18, 24, 0.8);
+      --border-card: rgba(255, 255, 255, 0.08);
+      --primary-color: #00f0ff;
+      --primary-glow: rgba(0, 240, 255, 0.25);
+      --secondary-color: #7000ff;
+      --secondary-glow: rgba(112, 0, 255, 0.25);
+      --text-main: #f3f4f6;
+      --text-muted: #9ca3af;
+      --success-color: #00ff66;
+      --error-color: #ff3e3e;
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    body {
+      font-family: 'Outfit', sans-serif;
+      background-color: var(--bg-main);
+      color: var(--text-main);
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      padding: 40px 20px;
+      overflow-y: auto;
+      background-image: 
+        radial-gradient(circle at 10% 20%, rgba(0, 240, 255, 0.03) 0%, transparent 40%),
+        radial-gradient(circle at 90% 80%, rgba(112, 0, 255, 0.04) 0%, transparent 40%);
+      background-attachment: fixed;
+    }
+
+    .container {
+      width: 100%;
+      max-width: 1000px;
+      display: flex;
+      flex-direction: column;
+      gap: 24px;
+    }
+
+    .glass-card {
+      background: var(--bg-card);
+      border: 1px solid var(--border-card);
+      border-radius: 16px;
+      padding: 24px;
+      backdrop-filter: blur(16px);
+      box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.37);
+    }
+
+    .header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      flex-wrap: wrap;
+      gap: 16px;
+    }
+
+    .title-group h1 {
+      font-size: 28px;
+      font-weight: 700;
+      letter-spacing: -0.5px;
+      background: linear-gradient(135deg, #fff 30%, var(--primary-color) 100%);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+    }
+
+    .title-group p {
+      color: var(--text-muted);
+      font-size: 14px;
+      margin-top: 4px;
+    }
+
+    .stats-row {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+      gap: 16px;
+    }
+
+    .stat-card {
+      text-align: center;
+      padding: 20px;
+      border-radius: 12px;
+      background: rgba(255,255,255,0.015);
+      border: 1px solid rgba(255,255,255,0.03);
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+    }
+
+    .stat-label {
+      font-size: 11px;
+      font-weight: 600;
+      color: var(--text-muted);
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+
+    .stat-value {
+      font-size: 28px;
+      font-weight: 700;
+    }
+
+    .filter-row {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 12px;
+      align-items: center;
+      justify-content: flex-end;
+    }
+
+    .form-label {
+      font-size: 11px;
+      color: var(--text-muted);
+      text-transform: uppercase;
+      font-weight: 500;
+    }
+
+    .form-input {
+      background: rgba(0, 0, 0, 0.3);
+      border: 1px solid var(--border-card);
+      border-radius: 6px;
+      padding: 6px 12px;
+      color: var(--text-main);
+      font-size: 12px;
+      height: 32px;
+      outline: none;
+      font-family: inherit;
+    }
+
+    .form-input:focus {
+      border-color: var(--primary-color);
+      box-shadow: 0 0 8px var(--primary-glow);
+    }
+
+    .btn {
+      background: rgba(255,255,255,0.05);
+      border: 1px solid var(--border-card);
+      border-radius: 6px;
+      color: var(--text-main);
+      padding: 0 16px;
+      height: 32px;
+      cursor: pointer;
+      font-size: 12px;
+      font-weight: 600;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      transition: all 0.2s;
+    }
+
+    .btn:hover {
+      background: rgba(255,255,255,0.08);
+      border-color: rgba(255,255,255,0.15);
+    }
+
+    .btn-primary {
+      background: rgba(0, 240, 255, 0.1);
+      border-color: rgba(0, 240, 255, 0.25);
+      color: var(--primary-color);
+    }
+
+    .btn-primary:hover {
+      background: rgba(0, 240, 255, 0.15);
+      border-color: var(--primary-color);
+      box-shadow: 0 0 10px rgba(0, 240, 255, 0.15);
+    }
+
+    .chart-container {
+      height: 320px;
+      position: relative;
+    }
+
+    .table-container {
+      width: 100%;
+      overflow-x: auto;
+    }
+
+    .library-table {
+      width: 100%;
+      border-collapse: collapse;
+      text-align: left;
+      font-size: 13px;
+    }
+
+    .library-table th {
+      padding: 12px 16px;
+      color: var(--text-muted);
+      font-weight: 600;
+      border-bottom: 1px solid var(--border-card);
+      text-transform: uppercase;
+      font-size: 10px;
+      letter-spacing: 0.5px;
+    }
+
+    .library-table td {
+      padding: 14px 16px;
+      border-bottom: 1px solid rgba(255,255,255,0.03);
+    }
+
+    .library-table tr:hover td {
+      background: rgba(255,255,255,0.01);
+    }
+
+    /* Notification */
+    #toast-container {
+      position: fixed;
+      bottom: 20px;
+      right: 20px;
+      z-index: 10000;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+
+    .toast {
+      background: rgba(18, 18, 24, 0.95);
+      border: 1px solid var(--border-card);
+      padding: 12px 20px;
+      border-radius: 8px;
+      font-size: 13px;
+      color: var(--text-main);
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      min-width: 250px;
+      box-shadow: 0 10px 30px rgba(0,0,0,0.5);
+      animation: slideIn 0.3s ease-out forwards;
+    }
+
+    .toast.error { border-color: var(--error-color); }
+    .toast.success { border-color: var(--success-color); }
+
+    @keyframes slideIn {
+      from { transform: translateX(100%); opacity: 0; }
+      to { transform: translateX(0); opacity: 1; }
+    }
+  </style>
+</head>
+<body>
+  <div id="toast-container"></div>
+  <div class="container">
+    <!-- Header -->
+    <div class="glass-card header">
+      <div class="title-group">
+        <h1 id="track-title">Loading Track Analytics...</h1>
+        <p id="track-artist">Retrieving detailed playlogs and listener retention metrics</p>
+      </div>
+      <div>
+        <button class="btn" onclick="window.close()">✕ Close Tab</button>
+      </div>
+    </div>
+
+    <!-- Stats row -->
+    <div class="stats-row">
+      <div class="glass-card stat-card">
+        <span class="stat-label">Total Plays</span>
+        <span class="stat-value" id="stat-plays" style="color: var(--primary-color);">0</span>
+      </div>
+      <div class="glass-card stat-card">
+        <span class="stat-label">Cumulative Minutes</span>
+        <span class="stat-value" id="stat-minutes" style="color: #ff00ff;">0</span>
+      </div>
+      <div class="glass-card stat-card">
+        <span class="stat-label">Cumulative Hours</span>
+        <span class="stat-value" id="stat-hours" style="color: #55ff00;">0</span>
+      </div>
+      <div class="glass-card stat-card">
+        <span class="stat-label">Avg Listeners</span>
+        <span class="stat-value" id="stat-avg-listeners" style="color: #ffaa00;">0</span>
+      </div>
+    </div>
+
+    <!-- Filters and Chart -->
+    <div class="glass-card">
+      <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; flex-wrap: wrap; gap: 16px;">
+        <h3 style="font-weight: 600;">Play Logs & Audience Time Series</h3>
+        
+        <div class="filter-row">
+          <label class="form-label">From</label>
+          <input type="date" id="filter-start" class="form-input">
+          <label class="form-label">To</label>
+          <input type="date" id="filter-end" class="form-input">
+          <button id="btn-filter" class="btn btn-primary">Apply</button>
+          <button id="btn-clear" class="btn">Clear</button>
+        </div>
+      </div>
+
+      <div class="chart-container">
+        <canvas id="time-series-chart"></canvas>
+      </div>
+    </div>
+
+    <!-- Details Table -->
+    <div class="glass-card">
+      <h3 style="font-weight: 600; margin-bottom: 16px;">Full Performance History</h3>
+      <div class="table-container">
+        <table class="library-table">
+          <thead>
+            <tr>
+              <th>Played At</th>
+              <th>Duration Played</th>
+              <th>Audience Start</th>
+              <th>Audience End</th>
+              <th>Retention Rate</th>
+            </tr>
+          </thead>
+          <tbody id="history-table-body">
+            <tr><td colspan="5" style="text-align: center; color: var(--text-muted); padding: 20px 0;">Loading play logs...</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    // Extract ID from query param
+    const urlParams = new URLSearchParams(window.location.search);
+    const trackId = urlParams.get('id');
+
+    if (!trackId) {
+      showToast('No track ID provided.', 'error');
+      document.getElementById('track-title').textContent = 'Error: Track Not Specified';
+    }
+
+    const jwtToken = localStorage.getItem('jwt');
+    let chartInstance = null;
+
+    // Toast helper
+    function showToast(message, type = 'success') {
+      const container = document.getElementById('toast-container');
+      const toast = document.createElement('div');
+      toast.className = `toast ${type}`;
+      toast.innerHTML = `<span>${type === 'success' ? '✅' : '🚨'}</span><div style="flex:1">${message}</div>`;
+      container.appendChild(toast);
+      setTimeout(() => toast.remove(), 4000);
+    }
+
+    // Format Duration Helper
+    function formatDuration(s) {
+      if (!s || isNaN(s)) return '0:00';
+      const mins = Math.floor(s / 60);
+      const secs = Math.floor(s % 60);
+      return `${mins}:${String(secs).padStart(2, '0')}`;
+    }
+
+    // Load Data
+    function loadTrackData() {
+      if (!trackId) return;
+      
+      const start = document.getElementById('filter-start').value;
+      const end = document.getElementById('filter-end').value;
+
+      let query = '';
+      if (start) query += `&startDate=${start}`;
+      if (end) query += `&endDate=${end}`;
+
+      fetch(`/api/analytics/track/${trackId}?${query}`, {
+        headers: {
+          'Authorization': `Bearer ${jwtToken}`
+        }
+      })
+      .then(res => {
+        if (res.status === 401 || res.status === 403) {
+          showToast('Session expired. Please log in.', 'error');
+          return;
+        }
+        if (!res.ok) throw new Error('Failed to retrieve analytics data');
+        return res.json();
+      })
+      .then(res => {
+        if (!res) return;
+
+        // Set Headers
+        document.getElementById('track-title').textContent = res.track.title;
+        document.getElementById('track-artist').textContent = `Performed by ${res.track.artist || 'Unknown Artist'}`;
+
+        // Set Stats
+        document.getElementById('stat-plays').textContent = res.stats.totalPlays;
+        document.getElementById('stat-minutes').textContent = res.stats.totalMinutes + 'm';
+        document.getElementById('stat-hours').textContent = res.stats.totalHours + 'h';
+        document.getElementById('stat-avg-listeners').textContent = res.stats.avgListeners;
+
+        // Render Table
+        const tbody = document.getElementById('history-table-body');
+        tbody.innerHTML = '';
+
+        if (res.history.length === 0) {
+          tbody.innerHTML = `<tr><td colspan="5" style="text-align: center; color: var(--text-muted); padding: 20px 0;">No play logs found for the selected range.</td></tr>`;
+          if (chartInstance) chartInstance.destroy();
+          return;
+        }
+
+        // We receive history in chronological order from backend for the chart
+        // For the table, we'll display them in reverse (newest first)
+        const tableHistory = [...res.history].reverse();
+
+        tableHistory.forEach(log => {
+          const tr = document.createElement('tr');
+          const dateStr = new Date(log.playedAt).toLocaleString();
+          tr.innerHTML = `
+            <td style="font-weight: 500;">${dateStr}</td>
+            <td>${formatDuration(log.durationPlayed)}</td>
+            <td>${log.listenersStart}</td>
+            <td>${log.listenersEnd}</td>
+            <td style="font-weight: 600; color: ${log.retentionRate >= 100 ? 'var(--success-color)' : 'var(--error-color)'}">${log.retentionRate}%</td>
+          `;
+          tbody.appendChild(tr);
+        });
+
+        // Render Time Series Chart
+        renderChart(res.history);
+      })
+      .catch(err => {
+        showToast(err.message, 'error');
+      });
+    }
+
+    function renderChart(history) {
+      const ctx = document.getElementById('time-series-chart').getContext('2d');
+      if (chartInstance) chartInstance.destroy();
+
+      const labels = history.map(log => new Date(log.playedAt).toLocaleDateString() + ' ' + new Date(log.playedAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }));
+      const listenerData = history.map(log => log.listenersStart);
+      const retentionData = history.map(log => log.retentionRate);
+
+      const primaryColor = '#00f0ff';
+      const secondaryColor = '#ff00ff';
+
+      chartInstance = new Chart(ctx, {
+        type: 'line',
+        data: {
+          labels: labels,
+          datasets: [
+            {
+              label: 'Audience at Start',
+              data: listenerData,
+              borderColor: primaryColor,
+              backgroundColor: 'rgba(0, 240, 255, 0.1)',
+              yAxisID: 'y',
+              tension: 0.35,
+              fill: true,
+              borderWidth: 3,
+              pointBackgroundColor: primaryColor
+            },
+            {
+              label: 'Retention Rate (%)',
+              data: retentionData,
+              borderColor: secondaryColor,
+              backgroundColor: 'transparent',
+              yAxisID: 'y1',
+              tension: 0.35,
+              borderWidth: 2,
+              borderDash: [5, 5],
+              pointBackgroundColor: secondaryColor
+            }
+          ]
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          scales: {
+            x: {
+              grid: { display: false },
+              ticks: { color: '#9ca3af', font: { family: 'Outfit', size: 10 } }
+            },
+            y: {
+              type: 'linear',
+              display: true,
+              position: 'left',
+              beginAtZero: true,
+              grid: { color: 'rgba(255, 255, 255, 0.05)' },
+              ticks: { color: '#9ca3af', font: { family: 'Outfit' } },
+              title: {
+                display: true,
+                text: 'Listeners',
+                color: primaryColor,
+                font: { family: 'Outfit', weight: 600 }
+              }
+            },
+            y1: {
+              type: 'linear',
+              display: true,
+              position: 'right',
+              beginAtZero: true,
+              grid: { drawOnChartArea: false },
+              ticks: { color: '#9ca3af', font: { family: 'Outfit' } },
+              title: {
+                display: true,
+                text: 'Retention %',
+                color: secondaryColor,
+                font: { family: 'Outfit', weight: 600 }
+              }
+            }
+          },
+          plugins: {
+            legend: {
+              labels: {
+                color: '#f3f4f6',
+                font: { family: 'Outfit', size: 12 }
+              }
+            }
+          }
+        }
+      });
+    }
+
+    // Bind Filter Events
+    document.getElementById('btn-filter').addEventListener('click', loadTrackData);
+    document.getElementById('btn-clear').addEventListener('click', () => {
+      document.getElementById('filter-start').value = '';
+      document.getElementById('filter-end').value = '';
+      loadTrackData();
+    });
+
+    // Run on load
+    if (jwtToken) {
+      loadTrackData();
+    } else {
+      showToast('Unauthorized: JWT Token not found.', 'error');
+    }
+  </script>
+</body>
+</html>
