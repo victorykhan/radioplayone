@@ -618,6 +618,58 @@
 
           <hr style="border: 0; border-top: 1px solid rgba(255,255,255,0.08); margin: 30px 0;">
 
+          <h3 style="font-weight: 600; margin-bottom: 8px;">Randomized Default Cover Arts</h3>
+          <p style="color: var(--text-muted); font-size: 12px; margin-bottom: 18px; line-height: 1.5;">Upload up to 5 default cover arts. Any audio track uploaded without embedded art will be randomly assigned one of these images.</p>
+          <div style="display: grid; grid-template-columns: repeat(5, 1fr); gap: 12px; margin-bottom: 30px;">
+            <!-- 5 slots -->
+            <div style="text-align: center; background: rgba(255,255,255,0.02); border: 1px solid rgba(255,255,255,0.05); border-radius: 8px; padding: 10px; position: relative;">
+              <span style="font-size: 10px; font-weight: 600; color: var(--text-muted); display: block; margin-bottom: 8px;">SLOT 1</span>
+              <div style="width: 100%; aspect-ratio: 1; border-radius: 4px; background: rgba(0,0,0,0.3); display: flex; align-items: center; justify-content: center; overflow: hidden; margin-bottom: 10px; border: 1px solid rgba(255,255,255,0.05);">
+                <img id="default-cover-img-1" src="/covers/default-vinyl.svg" style="width: 100%; height: 100%; object-fit: cover;" onerror="this.src='/covers/default-vinyl.svg'">
+              </div>
+              <button type="button" class="form-input" style="font-size: 10px; height: 26px; line-height: 24px; padding: 0; margin: 0; cursor: pointer;" onclick="document.getElementById('default-cover-file-1').click()">Upload</button>
+              <input type="file" id="default-cover-file-1" accept="image/jpeg, image/png" style="display: none;" onchange="uploadDefaultCover(1)">
+            </div>
+            
+            <div style="text-align: center; background: rgba(255,255,255,0.02); border: 1px solid rgba(255,255,255,0.05); border-radius: 8px; padding: 10px; position: relative;">
+              <span style="font-size: 10px; font-weight: 600; color: var(--text-muted); display: block; margin-bottom: 8px;">SLOT 2</span>
+              <div style="width: 100%; aspect-ratio: 1; border-radius: 4px; background: rgba(0,0,0,0.3); display: flex; align-items: center; justify-content: center; overflow: hidden; margin-bottom: 10px; border: 1px solid rgba(255,255,255,0.05);">
+                <img id="default-cover-img-2" src="/covers/default-vinyl.svg" style="width: 100%; height: 100%; object-fit: cover;" onerror="this.src='/covers/default-vinyl.svg'">
+              </div>
+              <button type="button" class="form-input" style="font-size: 10px; height: 26px; line-height: 24px; padding: 0; margin: 0; cursor: pointer;" onclick="document.getElementById('default-cover-file-2').click()">Upload</button>
+              <input type="file" id="default-cover-file-2" accept="image/jpeg, image/png" style="display: none;" onchange="uploadDefaultCover(2)">
+            </div>
+            
+            <div style="text-align: center; background: rgba(255,255,255,0.02); border: 1px solid rgba(255,255,255,0.05); border-radius: 8px; padding: 10px; position: relative;">
+              <span style="font-size: 10px; font-weight: 600; color: var(--text-muted); display: block; margin-bottom: 8px;">SLOT 3</span>
+              <div style="width: 100%; aspect-ratio: 1; border-radius: 4px; background: rgba(0,0,0,0.3); display: flex; align-items: center; justify-content: center; overflow: hidden; margin-bottom: 10px; border: 1px solid rgba(255,255,255,0.05);">
+                <img id="default-cover-img-3" src="/covers/default-vinyl.svg" style="width: 100%; height: 100%; object-fit: cover;" onerror="this.src='/covers/default-vinyl.svg'">
+              </div>
+              <button type="button" class="form-input" style="font-size: 10px; height: 26px; line-height: 24px; padding: 0; margin: 0; cursor: pointer;" onclick="document.getElementById('default-cover-file-3').click()">Upload</button>
+              <input type="file" id="default-cover-file-3" accept="image/jpeg, image/png" style="display: none;" onchange="uploadDefaultCover(3)">
+            </div>
+            
+            <div style="text-align: center; background: rgba(255,255,255,0.02); border: 1px solid rgba(255,255,255,0.05); border-radius: 8px; padding: 10px; position: relative;">
+              <span style="font-size: 10px; font-weight: 600; color: var(--text-muted); display: block; margin-bottom: 8px;">SLOT 4</span>
+              <div style="width: 100%; aspect-ratio: 1; border-radius: 4px; background: rgba(0,0,0,0.3); display: flex; align-items: center; justify-content: center; overflow: hidden; margin-bottom: 10px; border: 1px solid rgba(255,255,255,0.05);">
+                <img id="default-cover-img-4" src="/covers/default-vinyl.svg" style="width: 100%; height: 100%; object-fit: cover;" onerror="this.src='/covers/default-vinyl.svg'">
+              </div>
+              <button type="button" class="form-input" style="font-size: 10px; height: 26px; line-height: 24px; padding: 0; margin: 0; cursor: pointer;" onclick="document.getElementById('default-cover-file-4').click()">Upload</button>
+              <input type="file" id="default-cover-file-4" accept="image/jpeg, image/png" style="display: none;" onchange="uploadDefaultCover(4)">
+            </div>
+            
+            <div style="text-align: center; background: rgba(255,255,255,0.02); border: 1px solid rgba(255,255,255,0.05); border-radius: 8px; padding: 10px; position: relative;">
+              <span style="font-size: 10px; font-weight: 600; color: var(--text-muted); display: block; margin-bottom: 8px;">SLOT 5</span>
+              <div style="width: 100%; aspect-ratio: 1; border-radius: 4px; background: rgba(0,0,0,0.3); display: flex; align-items: center; justify-content: center; overflow: hidden; margin-bottom: 10px; border: 1px solid rgba(255,255,255,0.05);">
+                <img id="default-cover-img-5" src="/covers/default-vinyl.svg" style="width: 100%; height: 100%; object-fit: cover;" onerror="this.src='/covers/default-vinyl.svg'">
+              </div>
+              <button type="button" class="form-input" style="font-size: 10px; height: 26px; line-height: 24px; padding: 0; margin: 0; cursor: pointer;" onclick="document.getElementById('default-cover-file-5').click()">Upload</button>
+              <input type="file" id="default-cover-file-5" accept="image/jpeg, image/png" style="display: none;" onchange="uploadDefaultCover(5)">
+            </div>
+          </div>
+
+          <hr style="border: 0; border-top: 1px solid rgba(255,255,255,0.08); margin: 30px 0;">
+
           <h3 style="font-weight: 600; margin-bottom: 20px;">Playout Streaming Server (Icecast / Shoutcast)</h3>
           <div style="background: rgba(0,0,0,0.2); padding: 20px; border-radius: 8px; border: 1px solid rgba(255,255,255,0.05); font-size: 13px; line-height: 1.6;">
             <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px;">
@@ -1089,6 +1141,19 @@
         <button id="btn-confirm-proceed" class="form-input" style="width: auto; background: #ff3e3e; color: #fff; border: none; font-weight: 600; cursor: pointer;">Proceed</button>
       </div>
     </div>
+  </div>
+
+  <!-- Floating background upload container -->
+  <div id="bg-upload-status" style="position: fixed; bottom: 85px; right: 20px; z-index: 9999; display: none; background: rgba(18,18,24,0.95); border: 1px solid rgba(255,255,255,0.08); padding: 14px 18px; border-radius: 8px; box-shadow: 0 10px 30px rgba(0,0,0,0.5); backdrop-filter: blur(10px); width: 280px;">
+    <div style="font-size: 11px; font-weight: 700; text-transform: uppercase; color: var(--text-muted); display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px; letter-spacing: 0.5px;">
+      <span>Background Upload</span>
+      <span id="bg-upload-spinner" class="spinner-pulse" style="width: 8px; height: 8px; border-radius: 50%; background: var(--primary-color);"></span>
+    </div>
+    <div id="bg-upload-filename" style="font-size: 12px; font-weight: 500; margin-bottom: 8px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; color: var(--text-main);">Uploading files...</div>
+    <div style="width: 100%; height: 5px; background: rgba(255,255,255,0.05); border-radius: 3px; overflow: hidden; margin-bottom: 6px;">
+      <div id="bg-upload-progress" style="width: 0%; height: 100%; background: linear-gradient(90deg, var(--primary-color), var(--secondary-color)); transition: width 0.2s;"></div>
+    </div>
+    <div id="bg-upload-text" style="font-size: 10px; color: var(--text-muted);">0% uploaded</div>
   </div>
 
   <div id="toast-container"></div>

@@ -236,4 +236,62 @@ router.post('/og-image', authenticateJWT, requireRole(['ADMIN']), upload.single(
   }
 });
 
+// Get default cover slots status
+router.get('/default-covers', authenticateJWT, async (req, res) => {
+  try {
+    const defaultsDir = path.join(__dirname, '../../public/covers/defaults');
+    const slots = [];
+    for (let slot = 1; slot <= 5; slot++) {
+      const filePath = path.join(defaultsDir, `default-${slot}.jpg`);
+      const exists = fs.existsSync(filePath);
+      slots.push({
+        slot,
+        url: exists ? `/covers/defaults/default-${slot}.jpg?_t=${Date.now()}` : null,
+        exists
+      });
+    }
+    res.json(slots);
+  } catch (error) {
+    logger.error('Failed to retrieve default cover slots: %O', error);
+    res.status(500).json({ error: 'Failed to retrieve default covers' });
+  }
+});
+
+// Upload default cover to slot
+router.post('/default-covers/:slot', authenticateJWT, requireRole(['ADMIN', 'PRODUCER']), upload.single('cover'), async (req, res) => {
+  const slot = parseInt(req.params.slot);
+  if (isNaN(slot) || slot < 1 || slot > 5) {
+    return res.status(400).json({ error: 'Invalid default cover slot (must be 1-5)' });
+  }
+  if (!req.file) {
+    return res.status(400).json({ error: 'Image file required' });
+  }
+
+  try {
+    const defaultsDir = path.join(__dirname, '../../public/covers/defaults');
+    if (!fs.existsSync(defaultsDir)) {
+      fs.mkdirSync(defaultsDir, { recursive: true });
+    }
+
+    const targetPath = path.join(defaultsDir, `default-${slot}.jpg`);
+
+    // Process and resize image to 500x500 square via Sharp
+    await sharp(req.file.path)
+      .resize(500, 500, { fit: 'cover' })
+      .toFormat('jpeg')
+      .toFile(targetPath);
+
+    fs.unlinkSync(req.file.path);
+
+    const coverUrl = `/covers/defaults/default-${slot}.jpg?_t=${Date.now()}`;
+    res.json({ message: `Default cover art slot ${slot} updated successfully`, coverUrl });
+  } catch (error) {
+    logger.error('Failed to process default cover upload: %O', error);
+    if (req.file && fs.existsSync(req.file.path)) {
+      fs.unlinkSync(req.file.path);
+    }
+    res.status(500).json({ error: 'Failed to process default cover art image' });
+  }
+});
+
 export default router;

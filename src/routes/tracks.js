@@ -12,6 +12,23 @@ import sharp from 'sharp';
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
+function getRandomDefaultCover() {
+  const defaultsDir = path.join(__dirname, '../../public/covers/defaults');
+  if (fs.existsSync(defaultsDir)) {
+    const existing = [];
+    for (let slot = 1; slot <= 5; slot++) {
+      if (fs.existsSync(path.join(defaultsDir, `default-${slot}.jpg`))) {
+        existing.push(`/covers/defaults/default-${slot}.jpg`);
+      }
+    }
+    if (existing.length > 0) {
+      const idx = Math.floor(Math.random() * existing.length);
+      return existing[idx];
+    }
+  }
+  return '/covers/default-vinyl.png';
+}
+
 const router = express.Router();
 
 // Multer upload configurations (to a temporary uploads directory)
@@ -160,7 +177,7 @@ router.post('/confirm', authenticateJWT, requireRole(['ADMIN', 'PRODUCER']), asy
     fs.renameSync(tempFilePath, dest.fullPath);
 
     // Handle embedded album art extraction
-    let coverArtUrl = '/covers/default-vinyl.png';
+    let coverArtUrl = getRandomDefaultCover();
     if (audioData.picture) {
       const coverDir = path.join(__dirname, '../../public/covers');
       if (!fs.existsSync(coverDir)) {
@@ -290,7 +307,7 @@ router.post('/bulk', authenticateJWT, requireRole(['ADMIN', 'PRODUCER']), upload
       fs.renameSync(tempPath, dest.fullPath);
 
       // Extract cover if present
-      let coverArtUrl = '/covers/default-vinyl.png';
+      let coverArtUrl = getRandomDefaultCover();
       if (audioData.picture) {
         const coverDir = path.join(__dirname, '../../public/covers');
         if (!fs.existsSync(coverDir)) {

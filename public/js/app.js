@@ -87,6 +87,7 @@ document.addEventListener('DOMContentLoaded', () => {
   setupCategoryModal();
   setupTrackDrawer();
   setupAudioPlayer();
+  setupLiveMonitor();
 
   // Poll now playing every 4 seconds
   setInterval(pollNowPlaying, 4000);
@@ -1202,46 +1203,75 @@ function setupUploadModal() {
 }
 
 function handleBulkUpload(files) {
-  const statusArea = document.getElementById('upload-status-area');
-  const progressBar = document.getElementById('upload-progress-bar');
-  const progressText = document.getElementById('upload-progress-text');
+  // Close the upload modal instantly (non-blocking)
+  const modal = document.getElementById('upload-modal');
+  if (modal) modal.style.display = 'none';
 
-  statusArea.style.display = 'block';
-  progressBar.style.width = '0%';
-  progressText.textContent = `Processing 0 / ${files.length} files...`;
+  // Get background upload status elements
+  const bgStatus = document.getElementById('bg-upload-status');
+  const bgProgress = document.getElementById('bg-upload-progress');
+  const bgFilename = document.getElementById('bg-upload-filename');
+  const bgText = document.getElementById('bg-upload-text');
+
+  if (bgStatus) {
+    bgStatus.style.display = 'block';
+    bgProgress.style.width = '0%';
+    bgFilename.textContent = `Uploading ${files.length} file${files.length > 1 ? 's' : ''}...`;
+    bgText.textContent = '0% uploaded';
+  }
 
   const formData = new FormData();
   for (let i = 0; i < files.length; i++) {
     formData.append('audio', files[i]);
   }
 
-  // Upload to bulk endpoint
+  const token = localStorage.getItem('jwt_token') || jwtToken;
+
   const xhr = new XMLHttpRequest();
   xhr.open('POST', `${API_BASE}/tracks/bulk`);
-  xhr.setRequestHeader('Authorization', `Bearer ${jwtToken}`);
+  xhr.setRequestHeader('Authorization', `Bearer ${token}`);
 
   xhr.upload.addEventListener('progress', (e) => {
     if (e.lengthComputable) {
       const percent = (e.loaded / e.total) * 100;
-      progressBar.style.width = `${percent}%`;
-      progressText.textContent = `Uploading files: ${Math.round(percent)}% completed`;
+      if (bgProgress) bgProgress.style.width = `${percent}%`;
+      if (bgText) bgText.textContent = `${Math.round(percent)}% uploaded`;
     }
   });
 
   xhr.addEventListener('load', () => {
     if (xhr.status === 200) {
       const data = JSON.parse(xhr.responseText);
-      progressText.textContent = `Completed! ${data.results.success.length} imported, ${data.results.skipped.length} duplicates skipped.`;
-      progressBar.style.width = '100%';
+      
+      if (bgText) bgText.textContent = 'Upload complete!';
+      if (bgProgress) bgProgress.style.width = '100%';
+
       if (data.results.success.length > 0) {
-        showNotification(`Successfully uploaded ${data.results.success.length} tracks.`, 'success');
+        showNotification(`Upload Complete: Successfully imported ${data.results.success.length} tracks.`, 'success');
       } else {
-        showNotification(`Upload complete. No new tracks added (${data.results.skipped.length} duplicates skipped).`, 'warning');
+        showNotification(`Upload Complete: No new tracks added (${data.results.skipped.length} duplicates skipped).`, 'warning');
       }
+
+      // Reload tracks silently in the background
+      loadLibraryTracks();
+      loadLibraryFolders();
     } else {
-      progressText.textContent = 'Upload failed.';
+      if (bgText) bgText.textContent = 'Upload failed.';
       showNotification('Bulk upload failed. Please try again.', 'error');
     }
+
+    // Hide background indicator after 3 seconds
+    setTimeout(() => {
+      if (bgStatus) bgStatus.style.display = 'none';
+    }, 3000);
+  });
+
+  xhr.addEventListener('error', () => {
+    if (bgText) bgText.textContent = 'Upload error.';
+    showNotification('Network error during upload.', 'error');
+    setTimeout(() => {
+      if (bgStatus) bgStatus.style.display = 'none';
+    }, 3000);
   });
 
   xhr.send(formData);
@@ -1311,8 +1341,54 @@ function loadThemeSettings() {
       document.getElementById('settings-broadcast-mount').textContent = data.broadcast.mount;
       document.getElementById('settings-broadcast-username').textContent = data.broadcast.username;
     }
+    loadDefaultCovers();
   });
 }
+
+function loadDefaultCovers() {
+  const token = localStorage.getItem('jwt_token') || jwtToken;
+  if (!token) return;
+  apiFetch('/settings/default-covers')
+    .then(slots => {
+      slots.forEach(slot => {
+        const img = document.getElementById(`default-cover-img-${slot.slot}`);
+        if (img) {
+          img.src = slot.exists ? slot.url : '/covers/default-vinyl.svg';
+        }
+      });
+    })
+    .catch(err => console.error('Failed to load default covers:', err));
+}
+
+function uploadDefaultCover(slot) {
+  const fileInput = document.getElementById(`default-cover-file-${slot}`);
+  if (!fileInput || !fileInput.files.length) return;
+
+  const file = fileInput.files[0];
+  const formData = new FormData();
+  formData.append('cover', file);
+
+  const token = localStorage.getItem('jwt_token') || jwtToken;
+
+  fetch(`${API_BASE}/settings/default-covers/${slot}`, {
+    method: 'POST',
+    headers: { 'Authorization': `Bearer ${token}` },
+    body: formData
+  })
+  .then(res => {
+    if (!res.ok) throw new Error('Upload failed');
+    return res.json();
+  })
+  .then(data => {
+    showNotification(data.message, 'success');
+    loadDefaultCovers();
+  })
+  .catch(err => {
+    console.error('Failed to upload default cover:', err);
+    showNotification('Failed to upload default cover art.', 'error');
+  });
+}
+window.uploadDefaultCover = uploadDefaultCover;
 
 function setupForms() {
   // Login form submission
@@ -1930,7 +2006,7 @@ function deleteSingleActivityLog(id) {
    Web Audio API spectrum visualizer + live stream player
    embedded in the Studio Desk section.
    ═══════════════════════════════════════════════════════════════ */
-(function initLiveMonitor() {
+function setupLiveMonitor() {
   const STREAM_URL    = '/stream.mp3';
   const NP_URL        = '/api/public/now-playing';
 
@@ -1956,6 +2032,8 @@ function deleteSingleActivityLog(id) {
   const ctx2d = canvas.getContext('2d');
   let isPlaying   = false;
   let audioCtx, analyser, mediaSource, animFrameId;
+  let activeTrackId = null;
+  let currentServerElapsed = 0;
 
   const PLAY_PATH  = 'M8 5v14l11-7z';
   const PAUSE_PATH = 'M6 19h4V5H6v14zm8-14v14h4V5h-4z';
@@ -2059,10 +2137,16 @@ function deleteSingleActivityLog(id) {
         initAudioCtx();
         if (audioCtx && audioCtx.state === 'suspended') audioCtx.resume();
         // Bypass browser cache with timestamp to force fresh stream connection
-        audio.src = STREAM_URL + '?_t=' + Date.now();
+        const token = localStorage.getItem('jwt_token');
+        if (token && activeTrackId) {
+          audio.src = `/api/tracks/${activeTrackId}/audio?token=${token}`;
+          audio.currentTime = currentServerElapsed;
+        } else {
+          audio.src = STREAM_URL + '?_t=' + Date.now();
+        }
         audio.play().catch(e => {
           console.error('[LiveMonitor] Play error:', e);
-          showNotification('Could not connect to live stream. Check stream status.', 'error');
+          showNotification('Could not connect to stream. Check stream status.', 'error');
         });
         isPlaying = true;
         playIcon.setAttribute('d', PAUSE_PATH);
@@ -2144,6 +2228,29 @@ function deleteSingleActivityLog(id) {
     durationEl.textContent = dur ? fmtTime(dur) : '—';
     if (dur) progressFill.style.width = Math.min(100, (elapsed / dur) * 100) + '%';
 
+    currentServerElapsed = elapsed;
+
+    const token = localStorage.getItem('jwt_token');
+    if (token) {
+      if (isPlaying && audio) {
+        if (np.id !== activeTrackId) {
+          activeTrackId = np.id;
+          audio.src = `/api/tracks/${np.id}/audio?token=${token}`;
+          audio.currentTime = elapsed;
+          audio.play().catch(e => console.warn('[LiveMonitor] Play sync failed:', e));
+        } else {
+          // Align drift if client is more than 2 seconds out of sync
+          if (Math.abs(audio.currentTime - elapsed) > 2.0) {
+            audio.currentTime = elapsed;
+          }
+        }
+      } else {
+        activeTrackId = np.id;
+      }
+    } else {
+      activeTrackId = np.id;
+    }
+
     // Up next
     if (data.up_next && data.up_next.length > 0) {
       const nx = data.up_next[0];
@@ -2163,7 +2270,7 @@ function deleteSingleActivityLog(id) {
   pollMonitorNP();
   setInterval(pollMonitorNP, 4000);
 
-})(); // end initLiveMonitor IIFE
+} // end setupLiveMonitor
 
 
 // ═══════════════════════════════════════════════════════════════
