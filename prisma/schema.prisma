@@ -36,6 +36,7 @@ model Track {
   playLogs     PlayLog[]
   adTrack      AdTrack?
   instantCarts InstantCart[]
+  imagingElement ImagingElement?
   
   // Custom Playback Overrides
   volumeTrim   Float              @default(1.0)  // Volume multiplier (e.g. 0.8 to quiet, 1.2 to boost)
@@ -58,15 +59,17 @@ model TrackCategory {
 }
 
 model Playlist {
-  id           Int             @id @default(autoincrement())
-  name         String
-  isScheduled  Boolean         @default(false)
-  scheduleTime String?         // HH:MM format or Cron expression
-  duration     Float           @default(0.0) // sum of track durations
-  isLooping    Boolean         @default(true)
-  createdAt    DateTime        @default(now())
-  updatedAt    DateTime        @updatedAt
-  tracks       PlaylistTrack[]
+  id             Int             @id @default(autoincrement())
+  name           String
+  isScheduled    Boolean         @default(false)
+  isFallbackPool Boolean         @default(false) // Custom flag for multiple fallback pools
+  scheduleTime   String?         // HH:MM format or Cron expression
+  duration       Float           @default(0.0) // sum of track durations
+  isLooping      Boolean         @default(true)
+  createdAt      DateTime        @default(now())
+  updatedAt      DateTime        @updatedAt
+  tracks         PlaylistTrack[]
+  scheduleSlots  ScheduleSlot[]  // Calendar based slots
 }
 
 model PlaylistTrack {
@@ -81,6 +84,18 @@ model PlaylistTrack {
   track      Track    @relation(fields: [trackId], references: [id], onDelete: Cascade)
 
   @@unique([playlistId, position]) // ensure unique positions within a playlist
+}
+
+model ScheduleSlot {
+  id          String   @id @default(uuid())
+  playlistId  Int
+  startAt     DateTime // Saved as UTC (converted from station timezone)
+  endAt       DateTime // Saved as UTC (converted from station timezone)
+  createdAt   DateTime @default(now())
+
+  playlist    Playlist @relation(fields: [playlistId], references: [id], onDelete: Cascade)
+
+  @@index([startAt, endAt])
 }
 
 model FallbackPoolItem {
@@ -170,3 +185,16 @@ model InstantCart {
   trackId   Int
   track     Track    @relation(fields: [trackId], references: [id], onDelete: Cascade)
 }
+
+model ImagingElement {
+  id          String   @id @default(uuid())
+  name        String
+  type        String   // "INSTANT_CART", "SWEEPER", "STATION_ID", "DJ_DROP"
+  trackId     Int      @unique
+  slotNumber  Int?     // Hotkey mapping 1-12
+  isActive    Boolean  @default(true)
+  createdAt   DateTime @default(now())
+
+  track       Track    @relation(fields: [trackId], references: [id], onDelete: Cascade)
+}
+
