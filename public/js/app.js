@@ -441,6 +441,7 @@ function updateStudioDeck(track, isPaused = false, isStopped = false, isSourceCo
     }
   }
 
+  const deckSourceBadge = document.getElementById('deck-source-badge');
   if (nowPlayingTimer) clearInterval(nowPlayingTimer);
 
   if (!track || isStopped) {
@@ -450,6 +451,12 @@ function updateStudioDeck(track, isPaused = false, isStopped = false, isSourceCo
     deckTime.textContent = '00:00';
     deckProgress.style.width = '0%';
     deckCover.src = '/covers/default-vinyl.svg';
+    if (deckSourceBadge) {
+      deckSourceBadge.textContent = 'STANDBY';
+      deckSourceBadge.style.color = '';
+      deckSourceBadge.style.borderColor = '';
+      deckSourceBadge.style.background = '';
+    }
     return;
   }
 
@@ -457,6 +464,32 @@ function updateStudioDeck(track, isPaused = false, isStopped = false, isSourceCo
   deckTitle.style.color = '#ff3e3e';
   deckArtist.textContent = track.artist || 'Unknown Artist';
   deckCover.src = track.coverArtUrl || '/covers/default-vinyl.svg';
+
+  if (deckSourceBadge) {
+    const srcText = track.playoutSource || 'AUTO-SCHEDULER';
+    deckSourceBadge.textContent = srcText;
+    if (srcText.includes('Manual Queue')) {
+      deckSourceBadge.style.color = '#00e1ff';
+      deckSourceBadge.style.borderColor = 'rgba(0, 225, 255, 0.2)';
+      deckSourceBadge.style.background = 'rgba(0, 225, 255, 0.05)';
+    } else if (srcText.includes('Random Library')) {
+      deckSourceBadge.style.color = '#ffb300';
+      deckSourceBadge.style.borderColor = 'rgba(255, 179, 0, 0.2)';
+      deckSourceBadge.style.background = 'rgba(255, 179, 0, 0.05)';
+    } else if (srcText.includes('Show:')) {
+      deckSourceBadge.style.color = '#e040fb';
+      deckSourceBadge.style.borderColor = 'rgba(224, 64, 251, 0.2)';
+      deckSourceBadge.style.background = 'rgba(224, 64, 251, 0.05)';
+    } else if (srcText.includes('Fallback Pool')) {
+      deckSourceBadge.style.color = '#ff9100';
+      deckSourceBadge.style.borderColor = 'rgba(255, 145, 0, 0.2)';
+      deckSourceBadge.style.background = 'rgba(255, 145, 0, 0.05)';
+    } else {
+      deckSourceBadge.style.color = '#00ff66';
+      deckSourceBadge.style.borderColor = 'rgba(0, 255, 102, 0.2)';
+      deckSourceBadge.style.background = 'rgba(0, 255, 102, 0.05)';
+    }
+  }
 
   currentTrackDuration = track.duration;
   currentTrackElapsed = track.elapsed;

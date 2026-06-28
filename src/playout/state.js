@@ -202,7 +202,8 @@ class PlayoutStateManager {
         fileType: this.currentTrack.fileType,
         started_at: this.startedAt,
         elapsed: Math.min(elapsed, Math.round(this.currentTrack.duration)),
-        coverArtUrl: `/covers/${this.currentTrack.fileHash}.jpg`
+        coverArtUrl: `/covers/${this.currentTrack.fileHash}.jpg`,
+        playoutSource: this.currentTrack.playoutSource || 'Auto-Scheduler'
       },
       up_next: this._serializeQueue(),
       isPaused: this.isPaused,

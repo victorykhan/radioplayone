@@ -487,7 +487,10 @@
           <span class="eq-dot" id="stream-eq-dot"></span>
         </div>
         <div class="track-meta">
-          <div class="track-type" id="stream-track-type">🎵 NOW PLAYING</div>
+          <div style="display: flex; gap: 8px; align-items: center; margin-bottom: 6px; flex-wrap: wrap;">
+            <div class="track-type" id="stream-track-type" style="margin-bottom: 0;">🎵 NOW PLAYING</div>
+            <div id="stream-source-badge" style="font-size: 10px; font-weight: 700; background: rgba(255,255,255,0.06); border: 1px solid rgba(255,255,255,0.15); padding: 1px 6px; border-radius: 4px; color: rgba(255,255,255,0.5); text-transform: uppercase; letter-spacing: 0.5px;">STANDBY</div>
+          </div>
           <div class="marquee-wrap">
             <h2 class="marquee-inner" id="stream-title">Connecting...</h2>
           </div>
@@ -595,6 +598,7 @@
     const listenersEl = document.getElementById('stream-listeners');
     const eqDot       = document.getElementById('stream-eq-dot');
     const trackType   = document.getElementById('stream-track-type');
+    const sourceBadge = document.getElementById('stream-source-badge');
     const visHint     = document.getElementById('vis-hint');
     const offlineMsg  = document.getElementById('stream-offline');
     const btnCopy     = document.getElementById('btn-copy-url');
@@ -816,6 +820,32 @@
           const typeMap = { SONG:'🎵 NOW PLAYING', AD:'💰 AD BREAK', JINGLE:'🎤 JINGLE', STATION_ID:'📻 STATION ID', FILLER:'🎵 NOW PLAYING' };
           trackType.textContent = typeMap[np.fileType] || '🎵 NOW PLAYING';
 
+          if (sourceBadge) {
+            const srcText = np.playoutSource || 'AUTO-SCHEDULER';
+            sourceBadge.textContent = srcText;
+            if (srcText.includes('Manual Queue')) {
+              sourceBadge.style.color = '#00e1ff';
+              sourceBadge.style.borderColor = 'rgba(0, 225, 255, 0.3)';
+              sourceBadge.style.background = 'rgba(0, 225, 255, 0.08)';
+            } else if (srcText.includes('Random Library')) {
+              sourceBadge.style.color = '#ffb300';
+              sourceBadge.style.borderColor = 'rgba(255, 179, 0, 0.3)';
+              sourceBadge.style.background = 'rgba(255, 179, 0, 0.08)';
+            } else if (srcText.includes('Show:')) {
+              sourceBadge.style.color = '#e040fb';
+              sourceBadge.style.borderColor = 'rgba(224, 64, 251, 0.3)';
+              sourceBadge.style.background = 'rgba(224, 64, 251, 0.08)';
+            } else if (srcText.includes('Fallback Pool')) {
+              sourceBadge.style.color = '#ff9100';
+              sourceBadge.style.borderColor = 'rgba(255, 145, 0, 0.3)';
+              sourceBadge.style.background = 'rgba(255, 145, 0, 0.08)';
+            } else {
+              sourceBadge.style.color = '#00ff66';
+              sourceBadge.style.borderColor = 'rgba(0, 255, 102, 0.3)';
+              sourceBadge.style.background = 'rgba(0, 255, 102, 0.08)';
+            }
+          }
+
           nowPlayingData = np;
           lastTrackId = np.id;
 
@@ -881,6 +911,12 @@
           progressEl.style.width = '0%';
           upNextEl.textContent = 'No upcoming tracks';
           if (nextList) nextList.innerHTML = '<li class="track-item-empty">Queue is empty</li>';
+          if (sourceBadge) {
+            sourceBadge.textContent = 'STANDBY';
+            sourceBadge.style.color = '';
+            sourceBadge.style.borderColor = '';
+            sourceBadge.style.background = '';
+          }
           nowPlayingData = null;
           lastTrackId = null;
         }

@@ -197,6 +197,7 @@ class PlayoutEngine {
           dbTrack.cueStart = manualItem.cueStart ?? dbTrack.cueStart;
           dbTrack.cueEnd = manualItem.cueEnd ?? dbTrack.cueEnd;
           dbTrack.volumeTrim = manualItem.volumeTrim ?? dbTrack.volumeTrim;
+          dbTrack.playoutSource = 'Manual Queue';
           return dbTrack;
         }
       } catch (err) {
@@ -254,10 +255,12 @@ class PlayoutEngine {
             if (idx >= 0 && idx < activePlaylist.tracks.length) {
               const playlistTrack = activePlaylist.tracks[idx];
               playoutState.activePlaylistIndex++;
+              playlistTrack.track.playoutSource = `Show: ${activePlaylist.name}`;
               return playlistTrack.track;
             } else {
               if (activePlaylist.isLooping) {
                 playoutState.activePlaylistIndex = 1;
+                activePlaylist.tracks[0].track.playoutSource = `Show: ${activePlaylist.name}`;
                 return activePlaylist.tracks[0].track;
               } else {
                 playoutState.activePlaylistId = null;
@@ -295,6 +298,7 @@ class PlayoutEngine {
           playoutState.lastScheduledTriggerTime = currentHourMinute;
           playoutState.activePlaylistId = scheduledPlaylist.id;
           playoutState.activePlaylistIndex = 1;
+          scheduledPlaylist.tracks[0].track.playoutSource = `Playlist: ${scheduledPlaylist.name}`;
           return scheduledPlaylist.tracks[0].track;
         }
       }
@@ -318,6 +322,7 @@ class PlayoutEngine {
           playoutState.fallbackPlaylistIndex = idx + 1;
           const selectedTrack = allFallbackTracks[idx].track;
           logger.info('Scheduler selected track from Fallback Pools: %s', selectedTrack.title);
+          selectedTrack.playoutSource = 'Fallback Pool';
           return selectedTrack;
         }
       }
@@ -330,6 +335,7 @@ class PlayoutEngine {
 
       if (fallbackItem && !fallbackItem.track.isDeleted) {
         logger.info('Scheduler selected track from legacy Fallback Pool: %s', fallbackItem.track.title);
+        fallbackItem.track.playoutSource = 'Legacy Fallback Pool';
         return fallbackItem.track;
       }
 
@@ -344,6 +350,7 @@ class PlayoutEngine {
         });
         if (randomTracks.length > 0) {
           logger.info('Scheduler selected random fallback song: %s', randomTracks[0].title);
+          randomTracks[0].playoutSource = 'Random Library Song';
           return randomTracks[0];
         }
       }
@@ -352,6 +359,9 @@ class PlayoutEngine {
       const randomTrack = await prisma.track.findFirst({
         where: { isDeleted: false }
       });
+      if (randomTrack) {
+        randomTrack.playoutSource = 'Random Library Fallback';
+      }
       return randomTrack;
 
     } catch (error) {
