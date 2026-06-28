@@ -327,7 +327,7 @@ class PlayoutEngine {
     this.pausedTrackToResume = null;
     this.pausedOffsetToResume = 0;
 
-    await this.sendTelnetCommand('playout.skip');
+    await this.sendTelnetCommand('playout.flush_and_skip');
   }
 
   // Pause playout (Skip and remember elapsed offset)
@@ -344,7 +344,7 @@ class PlayoutEngine {
     this.pausedOffsetToResume = currentOffset;
     playoutState.isPaused = true;
 
-    await this.sendTelnetCommand('playout.skip');
+    await this.sendTelnetCommand('playout.flush_and_skip');
   }
 
   // Resume playout (Triggers skip to start playing cued paused track)
@@ -356,7 +356,7 @@ class PlayoutEngine {
     playoutState.isPaused = false;
     
     // Liquidsoap will automatically fetch on the next request cycle, but we skip to speed up transition
-    await this.sendTelnetCommand('playout.skip');
+    await this.sendTelnetCommand('playout.flush_and_skip');
   }
 
   // Play an Instant Cart
@@ -371,7 +371,7 @@ class PlayoutEngine {
     }
 
     this.cartTrackToPlay = cartTrack;
-    await this.sendTelnetCommand('playout.skip');
+    await this.sendTelnetCommand('playout.flush_and_skip');
   }
 
   // Skip current track
@@ -381,21 +381,21 @@ class PlayoutEngine {
     this.interruptedTrackToResume = null;
     this.interruptedOffsetToResume = 0;
 
-    await this.sendTelnetCommand('playout.skip');
+    await this.sendTelnetCommand('playout.flush_and_skip');
   }
 
   // Start playout
   async start() {
     logger.info('Playout start initiated.');
     this.isPlaying = true;
-    await this.sendTelnetCommand('playout.skip');
+    await this.sendTelnetCommand('playout.flush_and_skip');
   }
 
   async disconnect() {
     logger.info('Disconnecting playout source from Icecast via Telnet');
     this.isSourceConnected = false;
     try {
-      await this.sendTelnetCommand('playout_output.stop');
+      await this.sendTelnetCommand('RadioPlay_Playout_Stream.skip');
     } catch (err) {
       logger.error('Failed to disconnect playout_output: %O', err);
     }
@@ -405,7 +405,7 @@ class PlayoutEngine {
     logger.info('Connecting playout source to Icecast via Telnet');
     this.isSourceConnected = true;
     try {
-      await this.sendTelnetCommand('playout_output.start');
+      await this.sendTelnetCommand('playout.flush_and_skip');
     } catch (err) {
       logger.error('Failed to connect playout_output: %O', err);
     }
