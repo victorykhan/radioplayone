@@ -245,9 +245,9 @@ class PlayoutEngine {
         return scheduledPlaylist.tracks[0].track;
       }
 
-      // Check default fallback pool
+      // Rule 2: Check Fallback Pool playlist
       const fallbackPlaylist = await prisma.playlist.findFirst({
-        where: { isFallback: true },
+        where: { name: 'Fallback Pool' },
         include: {
           tracks: {
             orderBy: { position: 'asc' },
@@ -257,9 +257,37 @@ class PlayoutEngine {
       });
 
       if (fallbackPlaylist && fallbackPlaylist.tracks.length > 0) {
-        const count = fallbackPlaylist.tracks.length;
-        const randIdx = Math.floor(Math.random() * count);
-        return fallbackPlaylist.tracks[randIdx].track;
+        const idx = playoutState.fallbackPlaylistIndex % fallbackPlaylist.tracks.length;
+        playoutState.fallbackPlaylistIndex = idx + 1;
+        const playlistTrack = fallbackPlaylist.tracks[idx];
+        logger.info('Scheduler selected track from Fallback Pool playlist: %s', playlistTrack.track.title);
+        return playlistTrack.track;
+      }
+
+      // Rule 2.5: Legacy Fallback Pool items
+      const fallbackItem = await prisma.fallbackPoolItem.findFirst({
+        orderBy: { priority: 'desc' },
+        include: { track: true }
+      });
+
+      if (fallbackItem && !fallbackItem.track.isDeleted) {
+        logger.info('Scheduler selected track from legacy Fallback Pool: %s', fallbackItem.track.title);
+        return fallbackItem.track;
+      }
+
+      // Rule 3: Fallback to a random song
+      const songCount = await prisma.track.count({ where: { isDeleted: false, fileType: 'SONG' } });
+      if (songCount > 0) {
+        const randomIndex = Math.floor(Math.random() * songCount);
+        const randomTracks = await prisma.track.findMany({
+          where: { isDeleted: false, fileType: 'SONG' },
+          skip: randomIndex,
+          take: 1
+        });
+        if (randomTracks.length > 0) {
+          logger.info('Scheduler selected random fallback song: %s', randomTracks[0].title);
+          return randomTracks[0];
+        }
       }
 
       // Final fallback: any track in db
