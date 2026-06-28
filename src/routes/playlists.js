@@ -2,6 +2,7 @@ import express from 'express';
 import prisma from '../db.js';
 import logger from '../logger.js';
 import { authenticateJWT, requireRole } from './auth.js';
+import { getStationTimezone, convertToUTC, formatUTCToTimezone } from '../utils/timezone.js';
 
 const router = express.Router();
 
@@ -51,7 +52,7 @@ router.get('/:id', authenticateJWT, async (req, res) => {
 
 // 3. Create playlist
 router.post('/', authenticateJWT, requireRole(['ADMIN', 'PRODUCER']), async (req, res) => {
-  const { name, isScheduled, scheduleTime, isLooping } = req.body;
+  const { name, isScheduled, scheduleTime, isLooping, isFallbackPool } = req.body;
 
   if (!name) {
     return res.status(400).json({ error: 'Playlist name is required' });
@@ -63,7 +64,8 @@ router.post('/', authenticateJWT, requireRole(['ADMIN', 'PRODUCER']), async (req
         name,
         isScheduled: !!isScheduled,
         scheduleTime: scheduleTime || null,
-        isLooping: isLooping !== undefined ? !!isLooping : true
+        isLooping: isLooping !== undefined ? !!isLooping : true,
+        isFallbackPool: !!isFallbackPool
       }
     });
 
@@ -85,7 +87,7 @@ router.post('/', authenticateJWT, requireRole(['ADMIN', 'PRODUCER']), async (req
 // 4. Update playlist info (name, schedule, looping status)
 router.patch('/:id', authenticateJWT, requireRole(['ADMIN', 'PRODUCER']), async (req, res) => {
   const id = parseInt(req.params.id);
-  const { name, isScheduled, scheduleTime, isLooping } = req.body;
+  const { name, isScheduled, scheduleTime, isLooping, isFallbackPool } = req.body;
 
   try {
     const playlist = await prisma.playlist.findUnique({ where: { id } });
@@ -99,7 +101,8 @@ router.patch('/:id', authenticateJWT, requireRole(['ADMIN', 'PRODUCER']), async 
         name: name !== undefined ? name : playlist.name,
         isScheduled: isScheduled !== undefined ? !!isScheduled : playlist.isScheduled,
         scheduleTime: scheduleTime !== undefined ? scheduleTime : playlist.scheduleTime,
-        isLooping: isLooping !== undefined ? !!isLooping : playlist.isLooping
+        isLooping: isLooping !== undefined ? !!isLooping : playlist.isLooping,
+        isFallbackPool: isFallbackPool !== undefined ? !!isFallbackPool : playlist.isFallbackPool
       }
     });
 
@@ -276,6 +279,134 @@ router.delete('/:id', authenticateJWT, requireRole(['ADMIN']), async (req, res) 
   } catch (error) {
     logger.error('Failed to delete playlist: %O', error);
     res.status(500).json({ error: 'Failed to delete playlist' });
+  }
+});
+
+// === SCHEDULE SLOT CALENDAR ROUTES ===
+
+// 9. List scheduled slots mapped back to station timezone
+router.get('/schedules/slots', authenticateJWT, async (req, res) => {
+  try {
+    const tz = await getStationTimezone();
+    const slots = await prisma.scheduleSlot.findMany({
+      include: {
+        playlist: {
+          select: { name: true }
+        }
+      },
+      orderBy: { startAt: 'asc' }
+    });
+
+    const mapped = slots.map(s => ({
+      id: s.id,
+      playlistId: s.playlistId,
+      playlistName: s.playlist.name,
+      startAt: formatUTCToTimezone(s.startAt, tz),
+      endAt: formatUTCToTimezone(s.endAt, tz),
+      createdAt: s.createdAt
+    }));
+
+    res.json(mapped);
+  } catch (error) {
+    logger.error('Failed listing schedule slots: %O', error);
+    res.status(500).json({ error: 'Failed to retrieve schedule slots' });
+  }
+});
+
+// 10. Add a schedule slot (converts station timezone inputs to UTC)
+router.post('/schedules/slots', authenticateJWT, requireRole(['ADMIN', 'PRODUCER']), async (req, res) => {
+  const { playlistId, startAt, endAt } = req.body;
+
+  if (!playlistId || !startAt || !endAt) {
+    return res.status(400).json({ error: 'playlistId, startAt, and endAt are required' });
+  }
+
+  try {
+    const tz = await getStationTimezone();
+    
+    // Parse client date-times relative to target timezone and convert to UTC
+    const startUTC = convertToUTC(startAt, tz);
+    const endUTC = convertToUTC(endAt, tz);
+
+    if (startUTC >= endUTC) {
+      return res.status(400).json({ error: 'Start time must be before end time' });
+    }
+
+    // Check for overlap in scheduled slots
+    const overlap = await prisma.scheduleSlot.findFirst({
+      where: {
+        OR: [
+          {
+            startAt: { lte: startUTC },
+            endAt: { gte: startUTC }
+          },
+          {
+            startAt: { lte: endUTC },
+            endAt: { gte: endUTC }
+          },
+          {
+            startAt: { gte: startUTC },
+            endAt: { lte: endUTC }
+          }
+        ]
+      }
+    });
+
+    if (overlap) {
+      return res.status(400).json({ error: 'Schedule slot overlaps with an existing slot.' });
+    }
+
+    const slot = await prisma.scheduleSlot.create({
+      data: {
+        playlistId: parseInt(playlistId),
+        startAt: startUTC,
+        endAt: endUTC
+      }
+    });
+
+    await prisma.activityLog.create({
+      data: {
+        userId: req.user.id,
+        action: 'SCHEDULE_SLOT_CREATED',
+        details: `Scheduled playlist ID ${playlistId} from ${startAt} to ${endAt} (${tz})`
+      }
+    });
+
+    res.status(201).json(slot);
+  } catch (error) {
+    logger.error('Failed to create schedule slot: %O', error);
+    res.status(500).json({ error: 'Failed to create schedule slot' });
+  }
+});
+
+// 11. Delete a schedule slot
+router.delete('/schedules/slots/:id', authenticateJWT, requireRole(['ADMIN', 'PRODUCER']), async (req, res) => {
+  const id = req.params.id;
+
+  try {
+    const slot = await prisma.scheduleSlot.findUnique({
+      where: { id },
+      include: { playlist: true }
+    });
+
+    if (!slot) {
+      return res.status(404).json({ error: 'Schedule slot not found' });
+    }
+
+    await prisma.scheduleSlot.delete({ where: { id } });
+
+    await prisma.activityLog.create({
+      data: {
+        userId: req.user.id,
+        action: 'SCHEDULE_SLOT_DELETED',
+        details: `Deleted scheduled slot for playlist: ${slot.playlist.name}`
+      }
+    });
+
+    res.json({ message: 'Schedule slot deleted successfully' });
+  } catch (error) {
+    logger.error('Failed to delete schedule slot: %O', error);
+    res.status(500).json({ error: 'Failed to delete schedule slot' });
   }
 });
 

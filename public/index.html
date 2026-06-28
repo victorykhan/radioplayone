@@ -185,13 +185,8 @@
             <div class="glass-card">
               <h3 style="font-weight: 600; margin-bottom: 8px;">Instant Carts</h3>
               <p style="color: var(--text-muted); font-size: 13px;">Quick-fire sweeps and station sound clips</p>
-              <div class="carts-grid">
-                <button class="cart-button" style="border-color: #ff3e3e;" data-slot="1">🚨 Laser</button>
-                <button class="cart-button" style="border-color: #00f0ff;" data-slot="2">🎤 Intro Sweeper</button>
-                <button class="cart-button" style="border-color: #ffaa00;" data-slot="3">🎵 Station ID</button>
-                <button class="cart-button" style="border-color: #ff00ff;" data-slot="4">💥 Airhorn</button>
-                <button class="cart-button" style="border-color: #55ff00;" data-slot="5">📻 Static Out</button>
-                <button class="cart-button" style="border-color: #7000ff;" data-slot="6">🎭 Synth Drop</button>
+              <div class="carts-grid" id="studio-carts-container" style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px;">
+                <!-- Dynamically populated from /api/imaging -->
               </div>
             </div>
           </div>
@@ -385,6 +380,10 @@
                   <label class="form-label" style="margin: 0; cursor: pointer;" for="playlist-looping-input">Looping (repeats list)</label>
                 </div>
                 <div class="form-group" style="display: flex; align-items: center; gap: 8px;">
+                  <input type="checkbox" id="playlist-fallback-input" style="width: auto; margin: 0; cursor: pointer;">
+                  <label class="form-label" style="margin: 0; cursor: pointer;" for="playlist-fallback-input">Is Fallback Pool (loops if idle)</label>
+                </div>
+                <div class="form-group" style="display: flex; align-items: center; gap: 8px;">
                   <input type="checkbox" id="playlist-scheduled-input" style="width: auto; margin: 0; cursor: pointer;">
                   <label class="form-label" style="margin: 0; cursor: pointer;" for="playlist-scheduled-input">Enable Schedule</label>
                 </div>
@@ -462,6 +461,50 @@
                   </table>
                 </div>
               </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- CALENDAR SHOW SCHEDULER (3 MONTHS IN ADVANCE) -->
+        <div class="glass-card" style="margin-top: 30px;" id="calendar-scheduler-card">
+          <h3 style="font-weight: 600; margin-bottom: 8px;">📅 Calendar Show Scheduler</h3>
+          <p style="color: var(--text-muted); font-size: 13px; margin-bottom: 20px;">Schedule automated show playlists up to 3 months in advance. Times are resolved in target timezone.</p>
+          
+          <div style="display: grid; grid-template-columns: 320px 1fr; gap: 30px;">
+            <!-- Scheduler Form -->
+            <form id="scheduler-form" style="display: flex; flex-direction: column; gap: 16px; background: rgba(255,255,255,0.015); border: 1px solid rgba(255,255,255,0.04); padding: 20px; border-radius: 12px;">
+              <div class="form-group">
+                <label class="form-label">Select Playlist to Schedule</label>
+                <select id="schedule-playlist-select" class="form-input" style="background: rgba(0,0,0,0.3); color: var(--text-main); font-size: 13px;" required>
+                  <option value="">-- Choose Playlist --</option>
+                </select>
+              </div>
+              <div class="form-group">
+                <label class="form-label">Start Date & Time</label>
+                <input type="datetime-local" id="schedule-start-at" class="form-input" required>
+              </div>
+              <div class="form-group">
+                <label class="form-label">End Date & Time</label>
+                <input type="datetime-local" id="schedule-end-at" class="form-input" required>
+              </div>
+              <button type="submit" class="form-input" style="background: var(--primary-color); color: #000; border: none; font-weight: 600; cursor: pointer; margin-top: 10px;">Schedule Show Slot</button>
+            </form>
+            
+            <!-- Slots Table -->
+            <div class="table-container" style="max-height: 360px; overflow-y: auto;">
+              <table class="library-table">
+                <thead>
+                  <tr>
+                    <th>Playlist</th>
+                    <th>Start Time</th>
+                    <th>End Time</th>
+                    <th style="width: 80px; text-align: center;">Action</th>
+                  </tr>
+                </thead>
+                <tbody id="scheduler-table-body">
+                  <tr><td colspan="4" style="text-align: center; color: var(--text-muted); padding: 20px 0;">Loading scheduled slots...</td></tr>
+                </tbody>
+              </table>
             </div>
           </div>
         </div>
@@ -579,6 +622,18 @@
             <div class="form-group">
               <label class="form-label">Station Name</label>
               <input type="text" id="settings-station-name" class="form-input" required>
+            </div>
+            
+            <div class="form-group">
+              <label class="form-label">Station Broadcast Timezone</label>
+              <select id="settings-station-timezone" class="form-input" style="background: rgba(0, 0, 0, 0.3); color: var(--text-main); font-size: 13px;">
+                <option value="Africa/Lagos">Africa/Lagos (West Africa Time, GMT+1)</option>
+                <option value="America/Vancouver">America/Vancouver (Pacific Time, GMT-8)</option>
+                <option value="America/Toronto">America/Toronto (Eastern Time, GMT-5)</option>
+                <option value="Europe/London">Europe/London (GMT/BST, GMT+0/+1)</option>
+                <option value="UTC">UTC (Coordinated Universal Time)</option>
+              </select>
+              <span style="font-size: 10px; color: var(--text-muted); margin-top: 4px; display: block;">All scheduled calendar show times are configured and resolved relative to this target market timezone.</span>
             </div>
             <div style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 20px;">
               <div class="form-group">
@@ -802,59 +857,62 @@
           </div>
         </div>
 
-        <!-- INSTANT CARTS (SOUNDBOARD) CONFIGURATION -->
-        <div class="glass-card" style="max-width: 600px; margin-top: 30px;" id="settings-carts-card">
-          <h3 style="font-weight: 600; margin-bottom: 8px;">🎮 Instant Carts Configuration</h3>
-          <p style="color: var(--text-muted); font-size: 13px; margin-bottom: 20px;">Map sound effect tracks to quick-fire soundboard keys</p>
+        <!-- IMAGING & INSTANT CARTS MANAGER CARD -->
+        <div class="glass-card" style="max-width: 600px; margin-top: 30px;" id="settings-imaging-manager-card">
+          <h3 style="font-weight: 600; margin-bottom: 8px;">🎙️ Imaging & Instant Carts Manager</h3>
+          <p style="color: var(--text-muted); font-size: 13px; margin-bottom: 20px;">Manage sweeps, station IDs, DJ voice drops, and dynamic soundboard cart hotkeys.</p>
           
-          <form id="settings-carts-form">
-            <div style="display: flex; flex-direction: column; gap: 16px;">
-              <div class="form-group" style="margin-bottom: 0;">
-                <label class="form-label" style="display:flex; justify-content:space-between;">
-                  <span>Slot 1: 🚨 Laser</span>
-                  <span id="cart-lbl-1" style="font-size:11px; color:var(--primary-color);">Not configured</span>
-                </label>
-                <select id="cart-select-1" class="form-input cart-track-select"><option value="">-- Choose Track --</option></select>
+          <div style="display: flex; flex-direction: column; gap: 24px;">
+            <!-- Register Form -->
+            <form id="imaging-creator-form" style="display: flex; flex-direction: column; gap: 14px; background: rgba(255,255,255,0.015); border: 1px solid rgba(255,255,255,0.04); padding: 18px; border-radius: 10px;">
+              <div class="form-group">
+                <label class="form-label">Element Name</label>
+                <input type="text" id="imaging-name-input" class="form-input" placeholder="e.g. Laser SFX" required>
               </div>
-              <div class="form-group" style="margin-bottom: 0;">
-                <label class="form-label" style="display:flex; justify-content:space-between;">
-                  <span>Slot 2: 🎤 Intro Sweeper</span>
-                  <span id="cart-lbl-2" style="font-size:11px; color:var(--primary-color);">Not configured</span>
-                </label>
-                <select id="cart-select-2" class="form-input cart-track-select"><option value="">-- Choose Track --</option></select>
+              <div class="form-group">
+                <label class="form-label">Element Type</label>
+                <select id="imaging-type-input" class="form-input" style="background: rgba(0,0,0,0.3); color: var(--text-main);" required>
+                  <option value="INSTANT_CART">Instant Cart (Soundboard Hotkey)</option>
+                  <option value="SWEEPER">Sweeper (Between Songs)</option>
+                  <option value="STATION_ID">Station ID (Hourly Ident)</option>
+                  <option value="DJ_DROP">DJ Drop (Voice Overlay)</option>
+                </select>
               </div>
-              <div class="form-group" style="margin-bottom: 0;">
-                <label class="form-label" style="display:flex; justify-content:space-between;">
-                  <span>Slot 3: 🎵 Station ID</span>
-                  <span id="cart-lbl-3" style="font-size:11px; color:var(--primary-color);">Not configured</span>
-                </label>
-                <select id="cart-select-3" class="form-input cart-track-select"><option value="">-- Choose Track --</option></select>
+              <div class="form-group">
+                <label class="form-label">Assign Track File</label>
+                <select id="imaging-track-select" class="form-input" style="background: rgba(0,0,0,0.3); color: var(--text-main);" required>
+                  <option value="">-- Choose Track --</option>
+                </select>
               </div>
-              <div class="form-group" style="margin-bottom: 0;">
-                <label class="form-label" style="display:flex; justify-content:space-between;">
-                  <span>Slot 4: 💥 Airhorn</span>
-                  <span id="cart-lbl-4" style="font-size:11px; color:var(--primary-color);">Not configured</span>
-                </label>
-                <select id="cart-select-4" class="form-input cart-track-select"><option value="">-- Choose Track --</option></select>
+              <div class="form-group" id="imaging-slot-group">
+                <label class="form-label">Hotkey Slot (1-12)</label>
+                <input type="number" id="imaging-slot-input" class="form-input" min="1" max="12" value="1">
               </div>
-              <div class="form-group" style="margin-bottom: 0;">
-                <label class="form-label" style="display:flex; justify-content:space-between;">
-                  <span>Slot 5: 📻 Static Out</span>
-                  <span id="cart-lbl-5" style="font-size:11px; color:var(--primary-color);">Not configured</span>
-                </label>
-                <select id="cart-select-5" class="form-input cart-track-select"><option value="">-- Choose Track --</option></select>
-              </div>
-              <div class="form-group" style="margin-bottom: 0;">
-                <label class="form-label" style="display:flex; justify-content:space-between;">
-                  <span>Slot 6: 🎭 Synth Drop</span>
-                  <span id="cart-lbl-6" style="font-size:11px; color:var(--primary-color);">Not configured</span>
-                </label>
-                <select id="cart-select-6" class="form-input cart-track-select"><option value="">-- Choose Track --</option></select>
+              <button type="submit" class="form-input" style="background: var(--primary-color); color: #000; font-weight: 600; border: none; cursor: pointer;">Register Element</button>
+            </form>
+            
+            <hr style="border: 0; border-top: 1px solid rgba(255,255,255,0.08); margin: 10px 0;">
+
+            <!-- List Table -->
+            <div>
+              <h4 style="font-weight: 600; margin-bottom: 12px; font-size: 14px;">Configured Elements</h4>
+              <div class="table-container" style="max-height: 250px; overflow-y: auto;">
+                <table class="library-table">
+                  <thead>
+                    <tr>
+                      <th>Name</th>
+                      <th>Type</th>
+                      <th>Track</th>
+                      <th style="width: 60px; text-align: center;">Action</th>
+                    </tr>
+                  </thead>
+                  <tbody id="settings-imaging-list">
+                    <tr><td colspan="4" style="text-align: center; color: var(--text-muted); padding: 15px 0;">No imaging elements configured.</td></tr>
+                  </tbody>
+                </table>
               </div>
             </div>
-            
-            <button type="submit" class="form-input" style="background: var(--primary-color); color: #000; border: none; font-weight: 600; cursor: pointer; margin-top: 24px;">Save Carts Mapping</button>
-          </form>
+          </div>
         </div>
       </section>
 

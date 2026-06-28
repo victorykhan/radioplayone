@@ -21,6 +21,7 @@ import logRoutes from './routes/logs.js';
 import queueRoutes from './routes/queue.js';
 import systemRoutes from './routes/system.js';
 import playoutRoutes from './routes/playout.js';
+import imagingRoutes from './routes/imaging.js';
 
 // Playout Engine & Background Sync Imports
 import playoutEngine from './playout/engine.js';
@@ -76,6 +77,7 @@ app.use('/api/logs', logRoutes);
 app.use('/api/queue', queueRoutes);
 app.use('/api/system', systemRoutes);
 app.use('/api/playout', playoutRoutes);
+app.use('/api/imaging', imagingRoutes);
 
 // Intercept root and SPA fallbacks to inject dynamic database settings (SEO, OG, favicon, theme)
 const serveDynamicIndex = async (req, res) => {

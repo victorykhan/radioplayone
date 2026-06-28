@@ -594,6 +594,24 @@ router.delete('/:id', authenticateJWT, requireRole(['ADMIN']), async (req, res) 
       return res.status(404).json({ error: 'Track not found' });
     }
 
+    // Safety check: block delete if assigned to any Fallback Pool playlist
+    const fallbackAssigned = await prisma.playlistTrack.findFirst({
+      where: {
+        trackId: trackId,
+        playlist: {
+          isFallbackPool: true
+        }
+      },
+      include: {
+        playlist: true
+      }
+    });
+
+    if (fallbackAssigned) {
+      logger.warn('Delete Blocked: Track %s is part of fallback pool playlist %s', trackId, fallbackAssigned.playlist.name);
+      return res.status(400).json({ error: `Cannot delete track. It is assigned to the Fallback Pool playlist "${fallbackAssigned.playlist.name}".` });
+    }
+
     await prisma.track.update({
       where: { id: trackId },
       data: { isDeleted: true }

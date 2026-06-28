@@ -10,29 +10,43 @@ set("server.telnet", true)
 set("server.telnet.port", 1234)
 set("server.telnet.bind_addr", "127.0.0.1")
 
-# Get next track path from Node.js Express server
+# === 1. MUSIC SOURCE ===
 def get_next_track() =
-  # Fetch from API directly as a string
+  # Fetch next cued music track path from Node.js Express server
   let body = http.get("http://127.0.0.1:3000/api/playout/next-track-path")
-  # Return the request created from the annotated string
   request.create(body)
 end
-
-# Create dynamic request source
-playout = request.dynamic(id="playout", get_next_track)
-
+music = request.dynamic(id="playout", get_next_track)
 
 # Track start callback
 def on_track_start(m) =
-  # Notify Node.js API that a new track has started playing
+  # Notify Node.js API that a new music track has started playing
   ignore(http.post("http://127.0.0.1:3000/api/playout/track-started", headers=[("Content-Type", "application/json")], data="{}"))
 end
+music = source.on_track(music, on_track_start)
 
-playout = source.on_track(playout, on_track_start)
+# === 2. IMAGING / SWEEPER SOURCE ===
+def get_next_imaging() =
+  # Fetch next auto-inserted sweeper or station ID from Node.js Express server
+  let body = http.get("http://127.0.0.1:3000/api/playout/next-imaging-path")
+  request.create(body)
+end
+imaging = request.dynamic(id="imaging", get_next_imaging)
 
-# Fallback in case playout source is unavailable or empty
+# === 3. INSTANT CARTS SOURCE ===
+# Dynamic interactive queue for manual soundboard triggers
+carts = request.queue(id="carts_queue")
+
+# === 4. MIXING & DUCKING LAYERS ===
+# Mix A: Duck music to 15% gain when imaging/sweeper plays
+mixed_stream = smooth_add(normal=music, special=imaging, p=0.15, fade_in=0.5, fade_out=0.5)
+
+# Mix B: Duck the resulting program to 25% gain when manual instant carts play
+mixed_stream = smooth_add(normal=mixed_stream, special=carts, p=0.25, fade_in=0.2, fade_out=0.4)
+
+# Fallback safety silence in case of empty sources
 safety_silence = blank()
-stream = fallback(track_sensitive=false, [playout, safety_silence])
+stream = fallback(track_sensitive=false, [mixed_stream, safety_silence])
 
 # Master volume control (interactive, adjustable via Telnet: var.set master_vol = 0.75)
 master_vol = interactive.float("master_vol", 1.0)

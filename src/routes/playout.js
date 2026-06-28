@@ -223,6 +223,28 @@ router.post('/cart/:slot/trigger', authenticateJWT, requireRole(['ADMIN', 'PRODU
   }
 });
 
+// Local endpoint queried by Liquidsoap to fetch the next imaging/sweeper path
+router.get('/next-imaging-path', async (req, res) => {
+  try {
+    const track = await playoutEngine.fetchNextImagingForLiquidsoap();
+    if (!track) {
+      return res.send('');
+    }
+    
+    const cueIn = track.cueStart || 0;
+    const cueOut = track.cueEnd || track.duration || 0;
+    const volume = track.volumeTrim || 1.0;
+    
+    const annotatedPath = `annotate:liq_cue_in=${cueIn.toFixed(2)},liq_cue_out=${cueOut.toFixed(2)},liq_amplify=${volume.toFixed(2)}:/home/ubuntu/radioplayone/storage/${track.filePath}`;
+    
+    logger.info(`Liquidsoap imaging fetch: ${annotatedPath}`);
+    res.send(annotatedPath);
+  } catch (error) {
+    logger.error('Failed to get next imaging track for Liquidsoap: %O', error);
+    res.status(500).send('error');
+  }
+});
+
 // Local endpoint queried by Liquidsoap to fetch the next track path
 router.get('/next-track-path', async (req, res) => {
   try {
@@ -256,6 +278,23 @@ router.post('/track-started', async (req, res) => {
   } catch (error) {
     logger.error('Failed to handle Liquidsoap track-started event: %O', error);
     res.status(500).json({ error: 'Internal error' });
+  }
+});
+
+// 9. Instant Track Swap
+router.post('/instant-swap', authenticateJWT, requireRole(['ADMIN', 'PRODUCER', 'DJ']), async (req, res) => {
+  const { trackId } = req.body;
+
+  if (!trackId) {
+    return res.status(400).json({ error: 'trackId is required to swap the live track' });
+  }
+
+  try {
+    const result = await playoutEngine.instantSwapTrack(trackId);
+    res.json(result);
+  } catch (error) {
+    logger.error('Failed to trigger instant track swap: %O', error);
+    res.status(500).json({ error: error.message || 'Failed to trigger instant swap' });
   }
 });
 

@@ -16,7 +16,9 @@ function assignQueueId(item) {
     cueStart: item.cueStart ?? 0,
     cueEnd: item.cueEnd ?? item.duration,
     volumeTrim: item.volumeTrim ?? 1.0,
-    fadeDuration: item.fadeDuration ?? null
+    fadeDuration: item.fadeDuration ?? null,
+    isInterrupted: item.isInterrupted ?? false,
+    isSwappedNext: item.isSwappedNext ?? false
   };
 }
 
@@ -222,6 +224,8 @@ class PlayoutStateManager {
       duration: item.duration,
       cueStart: item.cueStart,
       cueEnd: item.cueEnd,
+      isInterrupted: item.isInterrupted || false,
+      isSwappedNext: item.isSwappedNext || false,
       coverArtUrl: item.fileHash ? `/covers/${item.fileHash}.jpg` : null
     }));
   }

@@ -6,6 +6,7 @@ import net from 'net';
 import prisma from '../db.js';
 import logger from '../logger.js';
 import playoutState from './state.js';
+import { getStationTimezone } from '../utils/timezone.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -26,6 +27,8 @@ class PlayoutEngine {
     this.pausedTrackToResume = null;
     this.pausedOffsetToResume = 0;
     this.isSourceConnected = true;
+    this.activeScheduleSlotId = null; // Track current scheduled calendar slot
+    this.musicCountSinceLastSweeper = 0; // Tracks songs played since last sweeper insert
   }
 
   // Sends control commands to Liquidsoap via local Telnet interface
@@ -170,6 +173,12 @@ class PlayoutEngine {
         }
       });
       logger.info('PlayLog created for: "%s"', track.title);
+
+      // Increment song counter to schedule sweeper intervals
+      if (track.fileType === 'SONG') {
+        this.musicCountSinceLastSweeper++;
+        logger.debug('PlayoutEngine: Incremented musicCountSinceLastSweeper. Current: %s', this.musicCountSinceLastSweeper);
+      }
     }
   }
 
@@ -192,10 +201,39 @@ class PlayoutEngine {
       }
     }
 
-    const now = new Date();
-    const currentHourMinute = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
+    const nowUTC = new Date();
 
     try {
+      // 1. RESOLVE CALENDAR SCHEDULE SLOTS (3 Months Advance Slots)
+      const activeSlot = await prisma.scheduleSlot.findFirst({
+        where: {
+          startAt: { lte: nowUTC },
+          endAt: { gte: nowUTC }
+        },
+        include: {
+          playlist: {
+            include: {
+              tracks: {
+                orderBy: { position: 'asc' },
+                include: { track: true }
+              }
+            }
+          }
+        }
+      });
+
+      if (activeSlot && activeSlot.playlist.tracks.length > 0) {
+        // If a new scheduled slot has started, switch active playlists
+        if (this.activeScheduleSlotId !== activeSlot.id) {
+          logger.info('Scheduler: Switching to scheduled calendar slot: "%s"', activeSlot.playlist.name);
+          this.activeScheduleSlotId = activeSlot.id;
+          playoutState.activePlaylistId = activeSlot.playlistId;
+          playoutState.activePlaylistIndex = 0;
+        }
+      } else {
+        // No active slot; clean slot tracking
+        this.activeScheduleSlotId = null;
+      }
       if (playoutState.activePlaylistId !== null) {
         try {
           const activePlaylist = await prisma.playlist.findUnique({
@@ -234,11 +272,33 @@ class PlayoutEngine {
         }
       }
 
-      const scheduledPlaylist = await prisma.playlist.findFirst({
-        where: {
-          isScheduled: true,
-          scheduleTime: currentHourMinute
-        },
+      // 2. CHECK REGULAR HOUR-BASED SCHEDULES (Legacy repeating schedule format)
+      if (playoutState.activePlaylistId === null) {
+        const currentHourMinute = `${String(nowUTC.getHours()).padStart(2, '0')}:${String(nowUTC.getMinutes()).padStart(2, '0')}`;
+        const scheduledPlaylist = await prisma.playlist.findFirst({
+          where: {
+            isScheduled: true,
+            scheduleTime: currentHourMinute
+          },
+          include: {
+            tracks: {
+              orderBy: { position: 'asc' },
+              include: { track: true }
+            }
+          }
+        });
+
+        if (scheduledPlaylist && scheduledPlaylist.tracks.length > 0 && playoutState.lastScheduledTriggerTime !== currentHourMinute) {
+          playoutState.lastScheduledTriggerTime = currentHourMinute;
+          playoutState.activePlaylistId = scheduledPlaylist.id;
+          playoutState.activePlaylistIndex = 1;
+          return scheduledPlaylist.tracks[0].track;
+        }
+      }
+
+      // 3. CHECK MULTIPLE ACTIVE FALLBACK POOLS
+      const fallbackPlaylists = await prisma.playlist.findMany({
+        where: { isFallbackPool: true },
         include: {
           tracks: {
             orderBy: { position: 'asc' },
@@ -247,33 +307,19 @@ class PlayoutEngine {
         }
       });
 
-      if (scheduledPlaylist && scheduledPlaylist.tracks.length > 0 && playoutState.lastScheduledTriggerTime !== currentHourMinute) {
-        playoutState.lastScheduledTriggerTime = currentHourMinute;
-        playoutState.activePlaylistId = scheduledPlaylist.id;
-        playoutState.activePlaylistIndex = 1;
-        return scheduledPlaylist.tracks[0].track;
-      }
-
-      // Rule 2: Check Fallback Pool playlist
-      const fallbackPlaylist = await prisma.playlist.findFirst({
-        where: { name: 'Fallback Pool' },
-        include: {
-          tracks: {
-            orderBy: { position: 'asc' },
-            include: { track: true }
-          }
+      if (fallbackPlaylists.length > 0) {
+        // Collect all tracks across fallback playlists
+        const allFallbackTracks = fallbackPlaylists.flatMap(p => p.tracks);
+        if (allFallbackTracks.length > 0) {
+          const idx = playoutState.fallbackPlaylistIndex % allFallbackTracks.length;
+          playoutState.fallbackPlaylistIndex = idx + 1;
+          const selectedTrack = allFallbackTracks[idx].track;
+          logger.info('Scheduler selected track from Fallback Pools: %s', selectedTrack.title);
+          return selectedTrack;
         }
-      });
-
-      if (fallbackPlaylist && fallbackPlaylist.tracks.length > 0) {
-        const idx = playoutState.fallbackPlaylistIndex % fallbackPlaylist.tracks.length;
-        playoutState.fallbackPlaylistIndex = idx + 1;
-        const playlistTrack = fallbackPlaylist.tracks[idx];
-        logger.info('Scheduler selected track from Fallback Pool playlist: %s', playlistTrack.track.title);
-        return playlistTrack.track;
       }
 
-      // Rule 2.5: Legacy Fallback Pool items
+      // Legacy fallback item resolver
       const fallbackItem = await prisma.fallbackPoolItem.findFirst({
         orderBy: { priority: 'desc' },
         include: { track: true }
@@ -428,6 +474,103 @@ class PlayoutEngine {
       await this.sendTelnetCommand(`var.set master_vol = ${amplify}`);
     } catch (err) {
       logger.error('Failed to set master volume: %O', err);
+    }
+  }
+
+  // Swap active live track with a new track
+  async instantSwapTrack(newTrackId) {
+    try {
+      logger.info('Instant Swap: Swapping active live track with track ID: %s', newTrackId);
+      
+      const newTrack = await prisma.track.findUnique({
+        where: { id: parseInt(newTrackId) }
+      });
+      if (!newTrack || newTrack.isDeleted) {
+        throw new Error('Replacement track not found or has been soft-deleted');
+      }
+
+      // 1. Process the currently playing track
+      const current = playoutState.currentTrack;
+      if (current) {
+        const elapsed = playoutState.isPaused 
+          ? playoutState.pausedElapsed 
+          : Math.round((new Date() - playoutState.startedAt) / 1000);
+        
+        // Push the current track back to index 0 of the manual queue
+        // Mark it as interrupted so it renders in red
+        const interruptedQueueItem = {
+          ...current,
+          cueStart: (current.cueStart || 0) + elapsed, // Resume from where it was cut off!
+          isInterrupted: true
+        };
+        
+        playoutState.addToQueue(interruptedQueueItem, 0);
+        logger.info('Instant Swap: Pushed interrupted track "%s" back to manual queue (resume cue offset: %ss)', current.title, interruptedQueueItem.cueStart.toFixed(1));
+      }
+
+      // 2. Add the new replacement track at index 0
+      // Mark it as swapped next so it renders in blue
+      const swapQueueItem = {
+        ...newTrack,
+        isSwappedNext: true
+      };
+      playoutState.addToQueue(swapQueueItem, 0);
+      logger.info('Instant Swap: Added replacement track "%s" to head of the queue', newTrack.title);
+
+      // Reset resumed states so they do not conflict
+      this.cartTrackToPlay = null;
+      this.interruptedTrackToResume = null;
+      this.interruptedOffsetToResume = 0;
+
+      // 3. Trigger skip in Liquidsoap
+      logger.info('Instant Swap: Executing playout.flush_and_skip via Telnet');
+      await this.sendTelnetCommand('playout.flush_and_skip');
+      
+      return { message: `Interrupted "${current ? current.title : 'Live'}" and swapped to "${newTrack.title}" successfully` };
+    } catch (error) {
+      logger.error('Failed performing instant track swap: %O', error);
+      throw error;
+    }
+  }
+
+  // Fetch a dynamic imaging sweeper track automatically every X tracks
+  async fetchNextImagingForLiquidsoap() {
+    try {
+      if (this.musicCountSinceLastSweeper >= 3) {
+        // Query database for a random active sweeper or drop
+        const count = await prisma.imagingElement.count({
+          where: {
+            isActive: true,
+            type: { in: ['SWEEPER', 'STATION_ID', 'DJ_DROP'] },
+            track: { isDeleted: false }
+          }
+        });
+
+        if (count > 0) {
+          const randomIndex = Math.floor(Math.random() * count);
+          const imaging = await prisma.imagingElement.findMany({
+            where: {
+              isActive: true,
+              type: { in: ['SWEEPER', 'STATION_ID', 'DJ_DROP'] },
+              track: { isDeleted: false }
+            },
+            include: { track: true },
+            skip: randomIndex,
+            take: 1
+          });
+
+          if (imaging.length > 0) {
+            const track = imaging[0].track;
+            logger.info('Scheduler: Serving auto-inserted sweeper: "%s"', track.title);
+            this.musicCountSinceLastSweeper = 0; // Reset counter
+            return track;
+          }
+        }
+      }
+      return null;
+    } catch (error) {
+      logger.error('Failed fetching next imaging: %O', error);
+      return null;
     }
   }
 }

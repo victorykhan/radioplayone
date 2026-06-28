@@ -344,10 +344,21 @@ function switchView(viewName) {
   currentView = viewName;
 
   // Trigger specific reloads
-  if (viewName === 'studio') loadDeckManualSelectors();
+  if (viewName === 'studio') {
+    loadDeckManualSelectors();
+    loadImagingElements();
+  }
   if (viewName === 'analytics') loadAnalytics();
   if (viewName === 'logs') loadLogs();
-  if (viewName === 'playlists') loadPlaylists();
+  if (viewName === 'playlists') {
+    loadPlaylists();
+    loadScheduledSlots();
+    populateSchedulePlaylistSelect();
+  }
+  if (viewName === 'settings') {
+    loadImagingElements();
+    populateImagingTrackSelect();
+  }
   if (viewName === 'library') {
     loadLibraryFolders();
     loadLibraryTracks();
@@ -505,7 +516,19 @@ function updateQueueList(queue) {
     const dur  = item.duration ? `${Math.floor(item.duration / 60)}:${String(Math.floor(item.duration % 60)).padStart(2, '0')}` : '—';
 
     const isNextTrack = (index === 0);
-    const titleStyle = isNextTrack ? 'style="color: #00d2ff; font-weight: 600; text-shadow: 0 0 4px rgba(0,210,255,0.15);"' : '';
+    let titleStyle = '';
+    
+    if (item.isInterrupted) {
+      el.style.borderColor = '#ff3e3e';
+      el.style.background = 'rgba(255, 62, 62, 0.05)';
+      titleStyle = 'style="color: #ff3e3e; font-weight: 600; text-shadow: 0 0 4px rgba(255,62,62,0.25);"';
+    } else if (item.isSwappedNext) {
+      el.style.borderColor = '#00d2ff';
+      el.style.background = 'rgba(0, 210, 255, 0.05)';
+      titleStyle = 'style="color: #00d2ff; font-weight: 600; text-shadow: 0 0 4px rgba(0,210,255,0.25);"';
+    } else if (isNextTrack) {
+      titleStyle = 'style="color: var(--primary-color); font-weight: 600;"';
+    }
 
     el.innerHTML = `
       <span class="queue-grip" title="Drag to reorder" style="${isViewer ? 'display:none;' : ''}">⠿</span>
@@ -866,6 +889,7 @@ function renderLibraryTracks() {
       <td><span style="background: rgba(255,255,255,0.06); padding: 4px 8px; border-radius: 4px; font-size: 11px;">${typeLabel}</span></td>
       <td>${dateStr}</td>
       <td>
+        <button class="control-btn btn-swap-track" data-id="${track.id}" style="font-size: 14px; margin-right: 10px;" title="Swap & Play Now">⚡</button>
         <button class="control-btn btn-track-analytics" data-id="${track.id}" style="font-size: 14px; margin-right: 10px;" title="View Track Analytics">📈</button>
         <button class="control-btn btn-edit-track" data-id="${track.id}" style="font-size: 14px; margin-right: 10px;">✏️</button>
         <button class="control-btn btn-delete-track" data-id="${track.id}" style="font-size: 14px; color: #ff5252;">🗑️</button>
@@ -889,6 +913,11 @@ function renderLibraryTracks() {
     tr.querySelector('.btn-track-analytics').addEventListener('click', (e) => {
       e.stopPropagation();
       window.open(`/track-analytics.html?id=${track.id}`, '_blank');
+    });
+
+    tr.querySelector('.btn-swap-track').addEventListener('click', (e) => {
+      e.stopPropagation();
+      triggerInstantSwap(track.id);
     });
 
     tr.querySelector('.btn-edit-track').addEventListener('click', (e) => {
@@ -1511,7 +1540,10 @@ function setupForms() {
         method: 'POST',
         body: {
           key: 'station_info',
-          value: { name }
+          value: { 
+            name, 
+            timezone: document.getElementById('settings-station-timezone').value 
+          }
         }
       });
     })
@@ -3524,11 +3556,9 @@ function removePlaylistTrack(playlistId, playlistTrackId) {
         e.preventDefault();
 
         const name = document.getElementById('playlist-name-input').value;
-        const isLooping = document.getElementById('playlist-looping-input').checked;
-        const isScheduled = document.getElementById('playlist-scheduled-input').checked;
-        const scheduleTime = isScheduled ? document.getElementById('playlist-schedule-time-input').value : null;
+        const isFallbackPool = document.getElementById('playlist-fallback-input').checked;
 
-        const body = { name, isLooping, isScheduled, scheduleTime };
+        const body = { name, isLooping, isScheduled, scheduleTime, isFallbackPool };
 
         if (editingPlaylistId) {
           apiFetch(`/playlists/${editingPlaylistId}`, {
@@ -3615,7 +3645,7 @@ function removePlaylistTrack(playlistId, playlistTrackId) {
             document.getElementById('playlist-form-title').textContent = '✏️ Edit Playlist';
             document.getElementById('playlist-name-input').value = playlist.name;
             document.getElementById('playlist-looping-input').checked = playlist.isLooping;
-            document.getElementById('playlist-scheduled-input').checked = playlist.isScheduled;
+            document.getElementById('playlist-fallback-input').checked = playlist.isFallbackPool || false;
             
             if (playlist.isScheduled && playlist.scheduleTime) {
               document.getElementById('playlist-schedule-time-wrap').style.display = 'block';
@@ -3638,6 +3668,7 @@ function resetPlaylistForm() {
   document.getElementById('playlist-form-title').textContent = 'Create Playlist';
   document.getElementById('playlist-name-input').value = '';
   document.getElementById('playlist-looping-input').checked = true;
+  document.getElementById('playlist-fallback-input').checked = false;
   document.getElementById('playlist-scheduled-input').checked = false;
   document.getElementById('playlist-schedule-time-wrap').style.display = 'none';
   document.getElementById('playlist-schedule-time-input').value = '';
@@ -3732,6 +3763,240 @@ function loadDeckManualSelectors() {
 
     if (currentView === 'studio') {
       loadDeckManualSelectors();
+      loadImagingElements();
     }
+    
+    // Wire calendar scheduler events
+    setupSchedulerEvents();
+    setupImagingEvents();
   });
 })();
+
+// === CALENDAR SHOW SCHEDULER (3 MONTHS IN ADVANCE) ===
+function loadScheduledSlots() {
+  apiFetch('/playlists/schedules/slots')
+    .then(slots => {
+      const tbody = document.getElementById('scheduler-table-body');
+      if (!tbody) return;
+      if (!slots || slots.length === 0) {
+        tbody.innerHTML = `<tr><td colspan="4" style="text-align: center; color: var(--text-muted); padding: 20px 0;">No calendar slots scheduled yet.</td></tr>`;
+        return;
+      }
+      
+      tbody.innerHTML = '';
+      slots.forEach(slot => {
+        const tr = document.createElement('tr');
+        tr.innerHTML = `
+          <td><strong>${slot.playlist.name}</strong></td>
+          <td>${new Date(slot.startAt).toLocaleString()}</td>
+          <td>${new Date(slot.endAt).toLocaleString()}</td>
+          <td style="text-align: center;">
+            <button class="queue-action-btn queue-action-danger" style="padding: 4px 8px; font-size: 11px;" onclick="deleteScheduleSlot('${slot.id}')">Delete</button>
+          </td>
+        `;
+        tbody.appendChild(tr);
+      });
+    })
+    .catch(err => console.error('Failed loading scheduled slots:', err));
+}
+
+function deleteScheduleSlot(id) {
+  showConfirm('Delete Scheduled Show', 'Are you sure you want to remove this scheduled slot?', () => {
+    apiFetch(`/playlists/schedules/slots/${id}`, {
+      method: 'DELETE'
+    })
+    .then(() => {
+      showNotification('Scheduled slot deleted', 'success');
+      loadScheduledSlots();
+    })
+    .catch(err => showNotification(err.message, 'error'));
+  });
+}
+window.deleteScheduleSlot = deleteScheduleSlot;
+
+function setupSchedulerEvents() {
+  const form = document.getElementById('scheduler-form');
+  if (form) {
+    form.addEventListener('submit', (e) => {
+      e.preventDefault();
+      const playlistId = document.getElementById('schedule-playlist-select').value;
+      const startAt = document.getElementById('schedule-start-at').value;
+      const endAt = document.getElementById('schedule-end-at').value;
+      
+      if (!playlistId || !startAt || !endAt) {
+        showNotification('Please fill in all scheduling fields', 'info');
+        return;
+      }
+      
+      apiFetch('/playlists/schedules/slots', {
+        method: 'POST',
+        body: { playlistId, startAt, endAt }
+      })
+      .then(() => {
+        showNotification('Show scheduled successfully', 'success');
+        form.reset();
+        loadScheduledSlots();
+      })
+      .catch(err => showNotification(err.message, 'error'));
+    });
+  }
+}
+
+// Populate playlist dropdown in scheduler
+function populateSchedulePlaylistSelect() {
+  const select = document.getElementById('schedule-playlist-select');
+  if (!select) return;
+  
+  apiFetch('/playlists')
+    .then(playlists => {
+      select.innerHTML = '<option value="">-- Choose Playlist --</option>';
+      playlists.forEach(playlist => {
+        const opt = document.createElement('option');
+        opt.value = playlist.id;
+        opt.textContent = playlist.name;
+        select.appendChild(opt);
+      });
+    })
+    .catch(err => console.error('Failed loading playlists for scheduler dropdown:', err));
+}
+
+// === IMAGING & SOUNDBOARD KEY MANAGER ===
+function loadImagingElements() {
+  apiFetch('/imaging')
+    .then(items => {
+      // 1. Populate configured list in settings
+      const tbody = document.getElementById('settings-imaging-list');
+      if (tbody) {
+        if (!items || items.length === 0) {
+          tbody.innerHTML = `<tr><td colspan="4" style="text-align: center; color: var(--text-muted); padding: 15px 0;">No imaging elements configured.</td></tr>`;
+        } else {
+          tbody.innerHTML = '';
+          items.forEach(item => {
+            const tr = document.createElement('tr');
+            tr.innerHTML = `
+              <td><strong>${item.name}</strong></td>
+              <td><span style="font-size: 11px; background: rgba(255,255,255,0.06); padding: 2px 6px; border-radius: 4px; color: var(--primary-color);">${item.type}</span></td>
+              <td>${item.track ? item.track.title : 'No track'}</td>
+              <td style="text-align: center;">
+                <button class="queue-action-btn queue-action-danger" style="padding: 4px 8px; font-size: 11px;" onclick="deleteImagingElement('${item.id}')">Delete</button>
+              </td>
+            `;
+            tbody.appendChild(tr);
+          });
+        }
+      }
+      
+      // 2. Populate Studio Desk Soundboard
+      const cartsContainer = document.getElementById('studio-carts-container');
+      if (cartsContainer) {
+        const cartItems = items.filter(i => i.type === 'INSTANT_CART');
+        if (cartItems.length === 0) {
+          cartsContainer.innerHTML = `<p style="grid-column: 1/-1; color: var(--text-muted); font-size: 12px; text-align: center; padding: 10px 0;">No carts mapped. Configure hotkeys in Settings.</p>`;
+        } else {
+          cartItems.sort((a,b) => (a.slotNumber || 0) - (b.slotNumber || 0));
+          cartsContainer.innerHTML = '';
+          cartItems.forEach(cart => {
+            const btn = document.createElement('button');
+            btn.className = 'cart-button';
+            const colors = ['#ff3e3e', '#00f0ff', '#ffaa00', '#ff00ff', '#55ff00', '#7000ff', '#ff0055', '#00ffaa'];
+            const idx = (cart.slotNumber || 1) % colors.length;
+            btn.style.borderColor = colors[idx];
+            btn.innerHTML = `Slot ${cart.slotNumber || ''}: ${cart.name}`;
+            btn.onclick = () => triggerInstantCart(cart.id);
+            cartsContainer.appendChild(btn);
+          });
+        }
+      }
+    })
+    .catch(err => console.error('Failed loading imaging elements:', err));
+}
+
+function triggerInstantCart(id) {
+  apiFetch(`/imaging/trigger-cart/${id}`, {
+    method: 'POST'
+  })
+  .then(res => showNotification(res.message, 'success'))
+  .catch(err => showNotification(err.message, 'error'));
+}
+
+function deleteImagingElement(id) {
+  showConfirm('Delete Imaging Element', 'Are you sure you want to delete this imaging element?', () => {
+    apiFetch(`/imaging/${id}`, {
+      method: 'DELETE'
+    })
+    .then(() => {
+      showNotification('Imaging element deleted', 'success');
+      loadImagingElements();
+    })
+    .catch(err => showNotification(err.message, 'error'));
+  });
+}
+window.deleteImagingElement = deleteImagingElement;
+
+function populateImagingTrackSelect() {
+  const select = document.getElementById('imaging-track-select');
+  if (!select) return;
+  
+  apiFetch('/tracks?limit=1000')
+    .then(res => {
+      const tracks = Array.isArray(res) ? res : (res.tracks || []);
+      select.innerHTML = '<option value="">-- Choose Track --</option>';
+      tracks.forEach(track => {
+        const opt = document.createElement('option');
+        opt.value = track.id;
+        opt.textContent = `${track.title} - ${track.artist || 'Unknown'}`;
+        select.appendChild(opt);
+      });
+    })
+    .catch(err => console.error('Failed loading tracks for imaging dropdown:', err));
+}
+
+function setupImagingEvents() {
+  const form = document.getElementById('imaging-creator-form');
+  if (form) {
+    form.addEventListener('submit', (e) => {
+      e.preventDefault();
+      const name = document.getElementById('imaging-name-input').value;
+      const type = document.getElementById('imaging-type-input').value;
+      const trackId = document.getElementById('imaging-track-select').value;
+      const slotNumber = document.getElementById('imaging-slot-input').value;
+      
+      apiFetch('/imaging', {
+        method: 'POST',
+        body: { name, type, trackId, slotNumber }
+      })
+      .then(() => {
+        showNotification('Imaging element registered successfully', 'success');
+        form.reset();
+        loadImagingElements();
+      })
+      .catch(err => showNotification(err.message, 'error'));
+    });
+    
+    // Toggle slot number field based on type selector
+    const typeSelect = document.getElementById('imaging-type-input');
+    const slotGroup = document.getElementById('imaging-slot-group');
+    if (typeSelect && slotGroup) {
+      typeSelect.addEventListener('change', () => {
+        slotGroup.style.display = (typeSelect.value === 'INSTANT_CART') ? 'block' : 'none';
+      });
+    }
+  }
+}
+
+// === INSTANT SWAP (PLAY NOW) MODULE ===
+function triggerInstantSwap(trackId) {
+  showConfirm('Instant Track Swap', 'Are you sure you want to interrupt the currently playing track and play this track immediately?', () => {
+    apiFetch('/playout/instant-swap', {
+      method: 'POST',
+      body: { trackId }
+    })
+    .then(res => {
+      showNotification(res.message, 'success');
+      pollNowPlaying();
+    })
+    .catch(err => showNotification(err.message, 'error'));
+  });
+}
+window.triggerInstantSwap = triggerInstantSwap;
+
