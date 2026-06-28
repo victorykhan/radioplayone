@@ -198,7 +198,7 @@ router.post('/cart/:slot/trigger', authenticateJWT, requireRole(['ADMIN', 'PRODU
 
     // Trigger cart playout
     await playoutEngine.playCart(cart.track);
-    res.json({ message: `Triggered Cart ${slot}: "${cart.track.title}"` });
+    res.json({ message: `Triggered Cart ${slot}: "${cart.track.title}"`, trackId: cart.track.id });
 
   } catch (error) {
     logger.error('Failed to trigger instant cart: %O', error);

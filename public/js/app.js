@@ -1590,6 +1590,8 @@ function setupAudioPlayer() {
   let bpAudio      = null;
   let bpPlaying    = false;
   let bpAudioCtx, bpAnalyser, bpSource, bpAnimId;
+  let activeTrackId = null;
+  let currentServerElapsed = 0;
 
   // ── Mini canvas visualizer ───────────────────────────────────
   let bpCtx = null;
@@ -1696,7 +1698,13 @@ function setupAudioPlayer() {
 
     if (bpAudioCtx && bpAudioCtx.state === 'suspended') bpAudioCtx.resume();
 
-    bpAudio.src = STREAM_URL + '?_t=' + Date.now();
+    const token = localStorage.getItem('jwt_token');
+    if (token && activeTrackId) {
+      bpAudio.src = `/api/tracks/${activeTrackId}/audio?token=${token}`;
+      bpAudio.currentTime = currentServerElapsed;
+    } else {
+      bpAudio.src = STREAM_URL + '?_t=' + Date.now();
+    }
     bpAudio.volume = parseFloat(volSlider.value);
     playBtn.textContent = '⏳';
 
@@ -1757,6 +1765,30 @@ function setupAudioPlayer() {
         const elapsed = np.elapsed || 0;
         const dur = np.duration;
         if (dur) bpProgress.style.width = Math.min(100, (elapsed / dur) * 100) + '%';
+
+        // Real-time local playout monitor synchronization for logged-in operators
+        const token = localStorage.getItem('jwt_token');
+        currentServerElapsed = elapsed;
+        
+        if (token) {
+          if (bpPlaying && bpAudio) {
+            if (np.id !== activeTrackId) {
+              activeTrackId = np.id;
+              bpAudio.src = `/api/tracks/${np.id}/audio?token=${token}`;
+              bpAudio.currentTime = elapsed;
+              bpAudio.play().catch(e => console.warn('[BottomPlayer] Autoplay sync failed:', e));
+            } else {
+              // Align drift if client is more than 2 seconds out of sync
+              if (Math.abs(bpAudio.currentTime - elapsed) > 2.0) {
+                bpAudio.currentTime = elapsed;
+              }
+            }
+          } else {
+            activeTrackId = np.id;
+          }
+        } else {
+          activeTrackId = np.id;
+        }
 
       } else {
         bpStatusDot.className = 'bp-dot bp-dot--offline';
@@ -2600,6 +2632,15 @@ function loadSettingsUsers() {
       apiFetch(`/playout/cart/${slot}/trigger`, { method: 'POST' })
         .then(res => {
           showNotification(res.message, 'success');
+          
+          // Instantly switch browser audio player for zero latency
+          const token = localStorage.getItem('jwt_token');
+          if (token && res.trackId && bpPlaying && bpAudio) {
+            activeTrackId = res.trackId;
+            bpAudio.src = `/api/tracks/${res.trackId}/audio?token=${token}`;
+            bpAudio.currentTime = 0;
+            bpAudio.play().catch(e => console.warn('[CartsPlayer] Failed playing:', e));
+          }
         })
         .catch(err => {
           showNotification(err.message, 'warning');
