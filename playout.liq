@@ -38,10 +38,10 @@ imaging = request.dynamic(id="imaging", get_next_imaging)
 carts = request.queue(id="carts_queue")
 
 # Mix A: Duck music to 15% gain when imaging/sweeper plays
-mixed_stream = smooth_add(delay=0.5, p=0.15, music, imaging)
+mixed_stream = smooth_add(duration=0.5, p=0.15, music, imaging)
 
 # Mix B: Duck the resulting program to 25% gain when manual instant carts play
-mixed_stream = smooth_add(delay=0.4, p=0.25, mixed_stream, carts)
+mixed_stream = smooth_add(duration=0.4, p=0.25, mixed_stream, carts)
 
 # Fallback safety silence in case of empty sources
 safety_silence = blank()
