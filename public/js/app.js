@@ -3060,15 +3060,42 @@ function loadSettingsUsers() {
     });
   }
 
-  // Master Volume Control
+  // Master Volume Control (Real-time and hardware accelerated)
   const masterVolSlider = document.getElementById('deck-master-vol');
   if (masterVolSlider) {
+    const updateMasterVolUI = (volume) => {
+      // Transition from Green (120) for low volume to Red (0) for high volume
+      const hue = 120 - (volume * 1.2); 
+      const color = `hsl(${hue}, 85%, 50%)`;
+      const glow = `hsla(${hue}, 85%, 50%, 0.4)`;
+      
+      // Update slider track background fill and thumb CSS variables
+      masterVolSlider.style.background = `linear-gradient(to right, ${color} ${volume}%, rgba(255, 255, 255, 0.1) ${volume}%)`;
+      masterVolSlider.style.setProperty('--slider-color', color);
+      masterVolSlider.style.setProperty('--slider-glow', glow);
+      
+      // Update label value and color
+      const label = document.getElementById('deck-master-vol-label');
+      if (label) {
+        label.textContent = `${volume}%`;
+        label.style.color = color;
+      }
+    };
+
+    // Initialize UI state on load
+    updateMasterVolUI(masterVolSlider.value);
+
+    // Track slider movements in real-time
+    masterVolSlider.addEventListener('input', (e) => {
+      updateMasterVolUI(e.target.value);
+    });
+
+    // Send final value to server when release sliding
     masterVolSlider.addEventListener('change', (e) => {
-      const volume = e.target.value;
+      const volume = parseInt(e.target.value);
       apiFetch('/playout/volume', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ volume })
+        body: { volume } // Pass as plain object (apiFetch stringifies it correctly once)
       })
       .then(res => showNotification(res.message, 'success'))
       .catch(err => showNotification(err.message, 'error'));

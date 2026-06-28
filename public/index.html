@@ -1210,14 +1210,14 @@
       -webkit-appearance: none;
       width: 14px; height: 14px;
       border-radius: 50%;
-      background: var(--primary-color);
-      box-shadow: 0 0 6px var(--primary-glow);
+      background: var(--slider-color, var(--primary-color));
+      box-shadow: 0 0 6px var(--slider-glow, var(--primary-glow));
       cursor: pointer;
     }
     #deck-master-vol::-moz-range-thumb {
       width: 14px; height: 14px;
       border-radius: 50%;
-      background: var(--primary-color);
+      background: var(--slider-color, var(--primary-color));
       border: none;
       cursor: pointer;
     }
