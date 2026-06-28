@@ -211,6 +211,8 @@ router.get('/next-track-path', async (req, res) => {
   try {
     const track = await playoutEngine.fetchNextTrackForLiquidsoap();
     if (!track) {
+      // Delay response by 3 seconds to prevent Liquidsoap tight-loop polling
+      await new Promise(resolve => setTimeout(resolve, 3000));
       return res.send('');
     }
     
