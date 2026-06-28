@@ -1,4 +1,4 @@
-import { spawn } from 'child_process';
+import { spawn, exec } from 'child_process';
 import path from 'path';
 import fs from 'fs';
 import { fileURLToPath } from 'url';
@@ -29,6 +29,8 @@ class PlayoutEngine {
     this.isSourceConnected = true;
     this.activeScheduleSlotId = null; // Track current scheduled calendar slot
     this.musicCountSinceLastSweeper = 0; // Tracks songs played since last sweeper insert
+    
+    this.generateSilenceTrack();
   }
 
   // Sends control commands to Liquidsoap via local Telnet interface
@@ -572,6 +574,25 @@ class PlayoutEngine {
     } catch (error) {
       logger.error('Failed fetching next imaging: %O', error);
       return null;
+    }
+  }
+
+  // Generate 5-second silent track on boot
+  generateSilenceTrack() {
+    const storageDir = path.resolve(__dirname, '../../storage');
+    if (!fs.existsSync(storageDir)) {
+      fs.mkdirSync(storageDir, { recursive: true });
+    }
+    const silencePath = path.join(storageDir, 'silence.mp3');
+    if (!fs.existsSync(silencePath)) {
+      logger.info('PlayoutEngine: Generating 5-second safety silence track at %s', silencePath);
+      exec(`ffmpeg -f lavfi -i anullsrc=r=44100:c=2 -t 5 -q:a 9 "${silencePath}"`, (err) => {
+        if (err) {
+          logger.error('PlayoutEngine: Failed to generate silence track: %s', err.message);
+        } else {
+          logger.info('PlayoutEngine: Silence track generated successfully.');
+        }
+      });
     }
   }
 }

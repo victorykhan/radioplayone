@@ -229,7 +229,7 @@ router.get('/next-imaging-path', async (req, res) => {
     const track = await playoutEngine.fetchNextImagingForLiquidsoap();
     if (!track) {
       await new Promise(resolve => setTimeout(resolve, 3000));
-      return res.send('');
+      return res.send('annotate:liq_cue_in=0.00,liq_cue_out=5.00,liq_amplify=1.00:/home/ubuntu/radioplayone/storage/silence.mp3');
     }
     
     const cueIn = track.cueStart || 0;
@@ -253,7 +253,7 @@ router.get('/next-track-path', async (req, res) => {
     if (!track) {
       // Delay response by 3 seconds to prevent Liquidsoap tight-loop polling
       await new Promise(resolve => setTimeout(resolve, 3000));
-      return res.send('');
+      return res.send('annotate:liq_cue_in=0.00,liq_cue_out=5.00,liq_amplify=1.00:/home/ubuntu/radioplayone/storage/silence.mp3');
     }
     
     const cueIn = track.cueStart || 0;
