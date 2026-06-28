@@ -25,11 +25,11 @@
     }
 
     html, body {
-      height: 100%;
       font-family: 'Inter', sans-serif;
       background: var(--bg);
       color: var(--text);
-      overflow: hidden;
+      overflow-y: auto;
+      overflow-x: hidden;
     }
 
     /* ─── Animated Background ──────────────────────────────── */
@@ -323,7 +323,100 @@
     }
     body.offline .offline-msg { display: block; }
 
+    /* ─── History & Queue Grid ─────────────────────────────── */
+    .history-queue-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 20px;
+      width: 100%;
+      max-width: 560px;
+      animation: fadeSlideUp 0.8s ease;
+      margin-top: 10px;
+      margin-bottom: 20px;
+    }
+    .list-card {
+      padding: 22px;
+      border-radius: 18px;
+    }
+    .list-title {
+      font-size: 12px;
+      font-weight: 700;
+      letter-spacing: 0.8px;
+      text-transform: uppercase;
+      color: var(--primary);
+      margin-bottom: 14px;
+      border-bottom: 1px solid rgba(255,255,255,0.06);
+      padding-bottom: 8px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .track-list {
+      list-style: none;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+    .track-item {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      font-size: 12px;
+      padding: 8px 10px;
+      border-radius: 8px;
+      background: rgba(255,255,255,0.015);
+      border: 1px solid rgba(255,255,255,0.03);
+      transition: background 0.2s, transform 0.2s;
+    }
+    .track-item:hover {
+      background: rgba(255,255,255,0.035);
+      transform: translateY(-1px);
+    }
+    .track-item-cover {
+      width: 32px;
+      height: 32px;
+      border-radius: 6px;
+      object-fit: cover;
+      border: 1px solid rgba(255,255,255,0.06);
+      flex-shrink: 0;
+    }
+    .track-item-meta {
+      flex: 1;
+      min-width: 0;
+    }
+    .track-item-title {
+      font-weight: 600;
+      color: var(--text);
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      font-size: 12px;
+      margin-bottom: 2px;
+    }
+    .track-item-artist {
+      color: var(--muted);
+      font-size: 10px;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+    .track-item-empty {
+      font-size: 11px;
+      color: var(--muted);
+      text-align: center;
+      padding: 16px 0;
+    }
+    .track-item-time {
+      font-size: 10px;
+      color: var(--muted);
+      margin-left: auto;
+      flex-shrink: 0;
+    }
+
     @media (max-width: 480px) {
+      .history-queue-grid {
+        grid-template-columns: 1fr;
+      }
       .player-card { padding: 22px 18px; border-radius: 18px; }
       .cover-art { width: 80px; height: 80px; }
       .track-meta h2 { font-size: 17px; }
@@ -395,6 +488,25 @@
       <p class="offline-msg" id="stream-offline">Stream is currently offline. Please check back soon.</p>
     </div>
 
+    <!-- Play History and Upcoming Queue Grid -->
+    <div class="history-queue-grid">
+      <!-- Past 5 Tracks -->
+      <div class="glass-card list-card">
+        <h4 class="list-title">🕒 Recently Played</h4>
+        <ul id="past-tracks-list" class="track-list">
+          <li class="track-item-empty">No recently played tracks</li>
+        </ul>
+      </div>
+
+      <!-- Next 5 Tracks -->
+      <div class="glass-card list-card">
+        <h4 class="list-title">⏭️ Coming Up Next</h4>
+        <ul id="next-tracks-list" class="track-list">
+          <li class="track-item-empty">Queue is empty</li>
+        </ul>
+      </div>
+    </div>
+
     <!-- Stream URL -->
     <div class="stream-url-box">
       <div class="label">Stream URL — use in any player or app</div>
@@ -433,6 +545,8 @@
     const visHint     = document.getElementById('vis-hint');
     const offlineMsg  = document.getElementById('stream-offline');
     const btnCopy     = document.getElementById('btn-copy-url');
+    const pastList    = document.getElementById('past-tracks-list');
+    const nextList    = document.getElementById('next-tracks-list');
 
     const canvas      = document.getElementById('vis-canvas');
     const ctx         = canvas.getContext('2d');
@@ -637,6 +751,59 @@
 
           nowPlayingData = np;
           lastTrackId = np.id;
+
+          // Render upcoming queue (Next 5 tracks)
+          if (nextList) {
+            if (data.up_next && data.up_next.length > 0) {
+              const next5 = data.up_next.slice(0, 5);
+              nextList.innerHTML = next5.map(track => {
+                const coverUrl = track.coverArtUrl || '/covers/default-vinyl.svg';
+                return `
+                  <li class="track-item">
+                    <img class="track-item-cover" src="${coverUrl}" alt="Cover" onerror="this.src='/covers/default-vinyl.svg'">
+                    <div class="track-item-meta">
+                      <div class="track-item-title">${track.title || 'Unknown Track'}</div>
+                      <div class="track-item-artist">${track.artist || 'Unknown Artist'}</div>
+                    </div>
+                    <span class="track-item-time">${fmtTime(track.duration)}</span>
+                  </li>
+                `;
+              }).join('');
+            } else {
+              nextList.innerHTML = '<li class="track-item-empty">Queue is empty</li>';
+            }
+          }
+
+          // Fetch and Render Past 5 tracks
+          try {
+            const histRes = await fetch('/api/public/history');
+            if (histRes.ok) {
+              const historyData = await histRes.json();
+              const past5 = historyData.slice(0, 5);
+              if (pastList) {
+                if (past5.length > 0) {
+                  pastList.innerHTML = past5.map(track => {
+                    const coverUrl = track.coverArtUrl || '/covers/default-vinyl.svg';
+                    const playedTime = track.playedAt ? new Date(track.playedAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '';
+                    return `
+                      <li class="track-item">
+                        <img class="track-item-cover" src="${coverUrl}" alt="Cover" onerror="this.src='/covers/default-vinyl.svg'">
+                        <div class="track-item-meta">
+                          <div class="track-item-title">${track.title || 'Unknown Track'}</div>
+                          <div class="track-item-artist">${track.artist || 'Unknown Artist'}</div>
+                        </div>
+                        <span class="track-item-time">${playedTime}</span>
+                      </li>
+                    `;
+                  }).join('');
+                } else {
+                  pastList.innerHTML = '<li class="track-item-empty">No recently played tracks</li>';
+                }
+              }
+            }
+          } catch (hErr) {
+            console.warn('Failed to fetch track history:', hErr);
+          }
         }
 
         // Listeners (if Icecast stats available)

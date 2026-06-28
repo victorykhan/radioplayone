@@ -49,7 +49,8 @@ class PlayoutStateManager {
         title: this.currentTrack.title,
         artist: this.currentTrack.artist,
         fileType: this.currentTrack.fileType,
-        playedAt: this.startedAt
+        playedAt: this.startedAt,
+        coverArtUrl: `/covers/${this.currentTrack.fileHash}.jpg`
       });
       if (this.history.length > 20) {
         this.history.pop();
