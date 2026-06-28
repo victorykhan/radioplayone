@@ -25,6 +25,7 @@ class PlayoutEngine {
     this.interruptedOffsetToResume = 0;
     this.pausedTrackToResume = null;
     this.pausedOffsetToResume = 0;
+    this.isSourceConnected = true;
   }
 
   // Sends control commands to Liquidsoap via local Telnet interface
@@ -390,8 +391,25 @@ class PlayoutEngine {
     await this.sendTelnetCommand('playout.skip');
   }
 
-  disconnect() {}
-  connect() {}
+  async disconnect() {
+    logger.info('Disconnecting playout source from Icecast via Telnet');
+    this.isSourceConnected = false;
+    try {
+      await this.sendTelnetCommand('playout_output.stop');
+    } catch (err) {
+      logger.error('Failed to disconnect playout_output: %O', err);
+    }
+  }
+
+  async connect() {
+    logger.info('Connecting playout source to Icecast via Telnet');
+    this.isSourceConnected = true;
+    try {
+      await this.sendTelnetCommand('playout_output.start');
+    } catch (err) {
+      logger.error('Failed to connect playout_output: %O', err);
+    }
+  }
 }
 
 const playoutEngine = new PlayoutEngine();

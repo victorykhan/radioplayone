@@ -12,7 +12,7 @@ router.get('/now-playing', (req, res) => {
   res.setHeader('Access-Control-Allow-Origin', '*'); // Enable CORS for external websites
   res.setHeader('Content-Type', 'application/json');
   const np = playoutState.getNowPlaying();
-  np.isSourceConnected = (playoutEngine.masterEncoder !== null);
+  np.isSourceConnected = playoutEngine.isSourceConnected;
   res.json(np);
 });
 

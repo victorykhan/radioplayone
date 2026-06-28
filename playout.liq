@@ -36,6 +36,7 @@ stream = fallback(track_sensitive=false, [playout, safety_silence])
 
 # Stream output to local Icecast playout mount
 output.icecast(%mp3(bitrate=128),
+  id="playout_output",
   host="localhost",
   port=8000,
   password="hackme",
