@@ -395,7 +395,7 @@ class PlayoutEngine {
     logger.info('Disconnecting playout source from Icecast via Telnet');
     this.isSourceConnected = false;
     try {
-      await this.sendTelnetCommand('RadioPlay_Playout_Stream.skip');
+      await this.sendTelnetCommand('playout_output.skip');
     } catch (err) {
       logger.error('Failed to disconnect playout_output: %O', err);
     }
