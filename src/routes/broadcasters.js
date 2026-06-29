@@ -39,7 +39,7 @@ async function recompilePlayoutConfig() {
       const formatBlock = `${formatStr}(${bitrateStr})`;
 
       if (b.type.toUpperCase() === 'ICECAST') {
-        const usernameLine = b.username ? `  username="${b.username}",\n` : '';
+        const usernameLine = b.username ? `  user="${b.username}",\n` : '';
         const mountLine = b.mount ? `  mount="${b.mount}",\n` : '  mount="stream",\n';
         
         broadcasterBlocks += `
