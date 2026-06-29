@@ -46,6 +46,11 @@ model Track {
   cueEnd       Float              @default(0.0)  // Cut off point (skips tail silence)
   fadeDuration Float?                            // Custom fade duration override in seconds
   isExplicit   Boolean            @default(false)
+  
+  // Musical Metadata
+  bpm          Float?
+  energy       Int?
+  mood         String?
 }
 
 model TrackCategory {
@@ -198,6 +203,14 @@ model ImagingElement {
   slotNumber  Int?     // Hotkey mapping 1-12
   isActive    Boolean  @default(true)
   createdAt   DateTime @default(now())
+
+  // Transition & Matching Rules
+  bpmMin      Float?
+  bpmMax      Float?
+  energyMin   Int?
+  energyMax   Int?
+  mood        String?
+  playMode    String   @default("OVERLAY") // "OVERLAY" or "TRANSITION"
 
   track       Track    @relation(fields: [trackId], references: [id], onDelete: Cascade)
 }
