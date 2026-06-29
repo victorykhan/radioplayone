@@ -302,6 +302,7 @@ class PlayoutEngine {
           });
 
           if (activePlaylist && activePlaylist.tracks.length > 0) {
+            playoutState.activePlaylistTracks = activePlaylist.tracks.map(pt => pt.track);
             const idx = playoutState.activePlaylistIndex;
             if (idx >= 0 && idx < activePlaylist.tracks.length) {
               const playlistTrack = activePlaylist.tracks[idx];
@@ -316,16 +317,19 @@ class PlayoutEngine {
               } else {
                 playoutState.activePlaylistId = null;
                 playoutState.activePlaylistIndex = 0;
+                playoutState.activePlaylistTracks = [];
               }
             }
           } else {
             playoutState.activePlaylistId = null;
             playoutState.activePlaylistIndex = 0;
+            playoutState.activePlaylistTracks = [];
           }
         } catch (err) {
           logger.error('Scheduler failed during active playlist track retrieval: %s', err.message);
           playoutState.activePlaylistId = null;
           playoutState.activePlaylistIndex = 0;
+          playoutState.activePlaylistTracks = [];
         }
       }
 
@@ -348,6 +352,7 @@ class PlayoutEngine {
         if (scheduledPlaylist && scheduledPlaylist.tracks.length > 0 && playoutState.lastScheduledTriggerTime !== currentHourMinute) {
           playoutState.lastScheduledTriggerTime = currentHourMinute;
           playoutState.activePlaylistId = scheduledPlaylist.id;
+          playoutState.activePlaylistTracks = scheduledPlaylist.tracks.map(pt => pt.track);
           playoutState.activePlaylistIndex = 1;
           scheduledPlaylist.tracks[0].track.playoutSource = `Playlist: ${scheduledPlaylist.name}`;
           return scheduledPlaylist.tracks[0].track;
@@ -369,6 +374,7 @@ class PlayoutEngine {
         // Collect all tracks across fallback playlists
         const allFallbackTracks = fallbackPlaylists.flatMap(p => p.tracks);
         if (allFallbackTracks.length > 0) {
+          playoutState.fallbackTracks = allFallbackTracks.map(pt => pt.track);
           const idx = playoutState.fallbackPlaylistIndex % allFallbackTracks.length;
           playoutState.fallbackPlaylistIndex = idx + 1;
           const selectedTrack = allFallbackTracks[idx].track;

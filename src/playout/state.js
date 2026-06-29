@@ -32,6 +32,8 @@ class PlayoutStateManager {
     this.playoutMode = 'AUTO';   // Playout Mode: AUTO, MANUAL, PLAYLIST
     this.activePlaylistId = null; // ID of currently executing playlist
     this.activePlaylistIndex = 0; // Current track position in active playlist
+    this.activePlaylistTracks = []; // Cached array of tracks in the currently active playlist
+    this.fallbackTracks = [];       // Cached array of tracks in fallback pools
     this.lastScheduledTriggerTime = null; // HH:MM of last triggered scheduled playlist
     
     // Playback control states
@@ -217,19 +219,62 @@ class PlayoutStateManager {
    * Serialize queue for API responses — includes all fields needed by the frontend.
    */
   _serializeQueue() {
-    return this.upcomingQueue.map((item, index) => ({
-      queueId: item.queueId,
+    if (this.upcomingQueue && this.upcomingQueue.length > 0) {
+      return this.upcomingQueue.map((item, index) => ({
+        queueId: item.queueId,
+        position: index,
+        id: item.trackId,
+        title: item.title,
+        artist: item.artist,
+        fileType: item.fileType,
+        duration: item.duration,
+        cueStart: item.cueStart,
+        cueEnd: item.cueEnd,
+        isInterrupted: item.isInterrupted || false,
+        isSwappedNext: item.isSwappedNext || false,
+        coverArtUrl: item.fileHash ? `/covers/${item.fileHash}.jpg` : null
+      }));
+    }
+
+    const predicted = [];
+    
+    // 1. Resolve upcoming tracks from active playlist/show
+    if (this.activePlaylistId && this.activePlaylistTracks && this.activePlaylistTracks.length > 0) {
+      let idx = this.activePlaylistIndex;
+      for (let i = 0; i < 10; i++) {
+        if (idx < this.activePlaylistTracks.length) {
+          predicted.push(this.activePlaylistTracks[idx]);
+          idx++;
+        } else {
+          break;
+        }
+      }
+    }
+
+    // 2. Fall back to fallback pool tracks if we don't have enough tracks predicted
+    if (predicted.length < 5 && this.fallbackTracks && this.fallbackTracks.length > 0) {
+      let fallbackIdx = this.fallbackPlaylistIndex;
+      while (predicted.length < 10) {
+        const track = this.fallbackTracks[fallbackIdx % this.fallbackTracks.length];
+        predicted.push(track);
+        fallbackIdx++;
+      }
+    }
+
+    // Serialize predicted tracks
+    return predicted.map((track, index) => ({
+      queueId: `pred-${index}`,
       position: index,
-      id: item.trackId,
-      title: item.title,
-      artist: item.artist,
-      fileType: item.fileType,
-      duration: item.duration,
-      cueStart: item.cueStart,
-      cueEnd: item.cueEnd,
-      isInterrupted: item.isInterrupted || false,
-      isSwappedNext: item.isSwappedNext || false,
-      coverArtUrl: item.fileHash ? `/covers/${item.fileHash}.jpg` : null
+      id: track.id,
+      title: track.title,
+      artist: track.artist,
+      fileType: track.fileType,
+      duration: track.duration,
+      cueStart: track.cueStart || 0,
+      cueEnd: track.cueEnd || track.duration,
+      isInterrupted: false,
+      isSwappedNext: false,
+      coverArtUrl: track.fileHash ? `/covers/${track.fileHash}.jpg` : null
     }));
   }
 }
