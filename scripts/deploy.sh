@@ -69,56 +69,79 @@ node prisma/seed.js
 
 # 6. Configure Nginx Server Block with SSL
 echo "Creating Nginx configuration..."
-sudo cat << 'EOF' > /tmp/nginx-radioplay
+sudo cat << 'EOF' > /tmp/nginx-playone
 server {
-    listen 80;
     server_name play.vawam.ca;
-    client_max_body_size 50M;
-    return 301 https://$host$request_uri;
-}
+    client_max_body_size 100M;
 
-server {
-    listen 443 ssl;
-    server_name play.vawam.ca;
-    client_max_body_size 50M;
-
-    ssl_certificate /etc/nginx/ssl/fullchain.cer;
-    ssl_certificate_key /etc/nginx/ssl/play.vawam.ca.key;
-
-    # Dynamic styling assets and dashboard frontend
     location / {
-        proxy_pass http://localhost:3000;
+        proxy_pass http://127.0.0.1:3000;
         proxy_http_version 1.1;
         proxy_set_header Upgrade $http_upgrade;
         proxy_set_header Connection 'upgrade';
         proxy_set_header Host $host;
         proxy_cache_bypass $http_upgrade;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
     }
 
-    # Proxy the Icecast stream through Nginx over port 443 to avoid mixed content block in browser
-    location /stream {
-        proxy_pass http://localhost:8000/stream;
+    location = /stream {
+        proxy_pass http://127.0.0.1:3000/stream.html;
         proxy_set_header Host $host;
         proxy_set_header X-Real-IP $remote_addr;
         proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
-        proxy_buffering off;
-        proxy_read_timeout 86400s;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_cache_bypass 1;
     }
 
-    # Proxy the Live DJ stream source endpoint for external connections
+    location /stream.mp3 {
+        proxy_pass http://127.0.0.1:8000/playout;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_buffering off;
+        proxy_read_timeout 86400s;
+        proxy_set_header Connection '';
+        proxy_http_version 1.1;
+        add_header Cache-Control 'no-cache, no-store';
+        add_header Access-Control-Allow-Origin '*';
+    }
+
     location /live {
-        proxy_pass http://localhost:8000/live;
+        proxy_pass http://127.0.0.1:8000/live;
         proxy_set_header Host $host;
         proxy_set_header X-Real-IP $remote_addr;
         proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
         proxy_buffering off;
         proxy_read_timeout 86400s;
+        proxy_set_header Connection '';
+        proxy_http_version 1.1;
     }
+
+    listen 443 ssl; # managed by Certbot
+    ssl_certificate /etc/letsencrypt/live/play.vawam.ca/fullchain.pem; # managed by Certbot
+    ssl_certificate_key /etc/letsencrypt/live/play.vawam.ca/privkey.pem; # managed by Certbot
+    include /etc/letsencrypt/options-ssl-nginx.conf; # managed by Certbot
+    ssl_dhparam /etc/letsencrypt/ssl-dhparams.pem; # managed by Certbot
+}
+
+server {
+    if ($host = play.vawam.ca) {
+        return 301 https://$host$request_uri;
+    } # managed by Certbot
+
+    listen 80;
+    server_name play.vawam.ca;
+    return 404; # managed by Certbot
 }
 EOF
 
-sudo mv /tmp/nginx-radioplay /etc/nginx/sites-available/radioplay
-sudo ln -sf /etc/nginx/sites-available/radioplay /etc/nginx/sites-enabled/radioplay
+sudo mv /tmp/nginx-playone /etc/nginx/sites-available/playone
+sudo ln -sf /etc/nginx/sites-available/playone /etc/nginx/sites-enabled/playone
+sudo rm -f /etc/nginx/sites-enabled/radioplay || true
 sudo rm -f /etc/nginx/sites-enabled/default || true
 
 echo "Testing Nginx syntax configuration..."
