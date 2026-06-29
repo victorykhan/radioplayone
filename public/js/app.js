@@ -1584,8 +1584,36 @@ function loadThemeSettings() {
     document.getElementById('station-logo').src = data.theme.logoUrl;
     document.getElementById('station-name').textContent = data.station_info.name;
 
+    // Populate dynamic list of IANA timezones
+    const tzSelect = document.getElementById('settings-station-timezone');
+    if (tzSelect && tzSelect.options.length <= 1) {
+      let timezones = [];
+      try {
+        timezones = Intl.supportedValuesOf('timeZone');
+      } catch (e) {
+        timezones = [
+          "Africa/Cairo", "Africa/Johannesburg", "Africa/Lagos", "America/Argentina/Buenos_Aires",
+          "America/Chicago", "America/Denver", "America/Los_Angeles", "America/Mexico_City",
+          "America/New_York", "America/Phoenix", "America/Sao_Paulo", "America/Toronto",
+          "America/Vancouver", "Asia/Dubai", "Asia/Hong_Kong", "Asia/Kolkata", "Asia/Seoul",
+          "Asia/Singapore", "Asia/Tokyo", "Australia/Sydney", "Europe/Berlin", "Europe/London",
+          "Europe/Madrid", "Europe/Paris", "Europe/Rome", "Pacific/Auckland", "Pacific/Honolulu", "UTC"
+        ];
+      }
+      tzSelect.innerHTML = '';
+      timezones.forEach(tz => {
+        const opt = document.createElement('option');
+        opt.value = tz;
+        opt.textContent = tz;
+        tzSelect.appendChild(opt);
+      });
+    }
+
     // Fill settings form values
     document.getElementById('settings-station-name').value = data.station_info.name;
+    if (data.station_info && data.station_info.timezone) {
+      document.getElementById('settings-station-timezone').value = data.station_info.timezone;
+    }
     document.getElementById('settings-color-primary').value = data.theme.primary;
     document.getElementById('settings-color-secondary').value = data.theme.secondary;
     document.getElementById('settings-color-background').value = bgVal;
