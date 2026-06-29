@@ -322,6 +322,7 @@ router.post('/bulk', authenticateJWT, requireRole(['ADMIN', 'PRODUCER']), upload
       }
 
       // Save database entry directly
+      const fileType = req.body.fileType || req.query.fileType || 'SONG';
       const track = await prisma.track.create({
         data: {
           title: resolvedTitle,
@@ -330,7 +331,7 @@ router.post('/bulk', authenticateJWT, requireRole(['ADMIN', 'PRODUCER']), upload
           duration: audioData.duration,
           fileHash: audioData.fileHash,
           filePath: dest.relative,
-          fileType: 'SONG',
+          fileType: fileType,
           coverArtUrl: coverArtUrl,
           cueEnd: audioData.duration
         }

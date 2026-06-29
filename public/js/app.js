@@ -4378,9 +4378,106 @@ function setupCampaignsEvents() {
         resetCampaignForm();
       });
     }
+
+    // Ad dropzone and file input handlers
+    const adDropzone = document.getElementById('ad-dropzone');
+    const adFileInput = document.getElementById('ad-file-input');
+    if (adDropzone && adFileInput) {
+      adDropzone.addEventListener('click', () => adFileInput.click());
+
+      adDropzone.addEventListener('dragover', (e) => {
+        e.preventDefault();
+        adDropzone.style.background = 'rgba(255,255,255,0.08)';
+      });
+
+      adDropzone.addEventListener('dragleave', () => {
+        adDropzone.style.background = 'none';
+      });
+
+      adDropzone.addEventListener('drop', (e) => {
+        e.preventDefault();
+        adDropzone.style.background = 'none';
+        const files = e.dataTransfer.files;
+        if (files.length > 0) handleAdCampaignUpload(files);
+      });
+
+      adFileInput.addEventListener('change', () => {
+        if (adFileInput.files.length > 0) handleAdCampaignUpload(adFileInput.files);
+      });
+    }
   }
 }
 window.setupCampaignsEvents = setupCampaignsEvents;
+
+function handleAdCampaignUpload(files) {
+  const targetType = document.getElementById('ad-upload-type-select').value;
+
+  const bgStatus = document.getElementById('bg-upload-status');
+  const bgProgress = document.getElementById('bg-upload-progress');
+  const bgFilename = document.getElementById('bg-upload-filename');
+  const bgText = document.getElementById('bg-upload-text');
+
+  if (bgStatus) {
+    bgStatus.style.display = 'block';
+    bgProgress.style.width = '0%';
+    bgFilename.textContent = `Uploading ${files.length} Campaign Audio clip${files.length > 1 ? 's' : ''}...`;
+    bgText.textContent = '0% uploaded';
+  }
+
+  const formData = new FormData();
+  for (let i = 0; i < files.length; i++) {
+    formData.append('audio', files[i]);
+  }
+  formData.append('fileType', targetType);
+
+  const token = localStorage.getItem('jwt') || jwtToken;
+
+  const xhr = new XMLHttpRequest();
+  xhr.open('POST', `${API_BASE}/tracks/bulk`);
+  xhr.setRequestHeader('Authorization', `Bearer ${token}`);
+
+  xhr.upload.addEventListener('progress', (e) => {
+    if (e.lengthComputable) {
+      const percent = (e.loaded / e.total) * 100;
+      if (bgProgress) bgProgress.style.width = `${percent}%`;
+      if (bgText) bgText.textContent = `${Math.round(percent)}% uploaded`;
+    }
+  });
+
+  xhr.addEventListener('load', () => {
+    if (xhr.status === 200) {
+      const data = JSON.parse(xhr.responseText);
+      if (bgText) bgText.textContent = 'Upload complete!';
+      if (bgProgress) bgProgress.style.width = '100%';
+
+      if (data.results.success.length > 0) {
+        showNotification(`Upload Complete: Successfully imported ${data.results.success.length} campaign items as type ${targetType}.`, 'success');
+      } else {
+        showNotification(`Upload Complete: No new items added (${data.results.skipped.length} duplicates skipped).`, 'warning');
+      }
+
+      populateCampaignTracksSelect();
+    } else {
+      if (bgText) bgText.textContent = 'Upload failed.';
+      showNotification('Campaign bulk upload failed. Please try again.', 'error');
+    }
+
+    setTimeout(() => {
+      if (bgStatus) bgStatus.style.display = 'none';
+    }, 3000);
+  });
+
+  xhr.addEventListener('error', () => {
+    if (bgText) bgText.textContent = 'Upload error.';
+    showNotification('Network error during upload.', 'error');
+    setTimeout(() => {
+      if (bgStatus) bgStatus.style.display = 'none';
+    }, 3000);
+  });
+
+  xhr.send(formData);
+}
+window.handleAdCampaignUpload = handleAdCampaignUpload;
 
 function editCampaign(id) {
   apiFetch('/campaigns')

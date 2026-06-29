@@ -567,6 +567,27 @@
         <div style="display: grid; grid-template-columns: 350px 1fr; gap: 30px;">
           <!-- LEFT PANEL: CAMPAIGN CRUD -->
           <div style="display: flex; flex-direction: column; gap: 20px;">
+            <!-- Upload Ads Widget -->
+            <div class="glass-card">
+              <h3 style="font-weight: 600; margin-bottom: 12px;">📤 Upload Ads & Promos</h3>
+              <p style="font-size: 12px; color: var(--text-muted); margin-bottom: 12px;">Upload audio clips directly as AD or PROMO tracks.</p>
+              
+              <div class="form-group" style="margin-bottom: 12px;">
+                <label class="form-label">Upload Target Type</label>
+                <select id="ad-upload-type-select" class="form-input" style="background: rgba(0,0,0,0.3); color:#fff; cursor: pointer;">
+                  <option value="AD" selected>💰 Ad / Commercial</option>
+                  <option value="PROMO">📣 Promo Clip</option>
+                </select>
+              </div>
+
+              <div id="ad-dropzone" style="border: 2px dashed rgba(255,255,255,0.15); border-radius: 8px; padding: 25px 15px; text-align: center; cursor: pointer; transition: background 0.2s;">
+                <span style="font-size: 24px; display: block; margin-bottom: 8px;">🎙️</span>
+                <p style="font-weight: 600; font-size: 13px; margin-bottom: 4px;">Click or Drag Files Here</p>
+                <p style="font-size: 11px; color: var(--text-muted);">Supports MP3, WAV, OGG, M4A</p>
+                <input type="file" id="ad-file-input" style="display: none;" multiple accept="audio/*">
+              </div>
+            </div>
+
             <!-- Campaign Creator Form -->
             <div class="glass-card">
               <h3 id="campaign-form-title" style="font-weight: 600; margin-bottom: 15px;">Create Ad Campaign</h3>
