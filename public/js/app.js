@@ -912,6 +912,9 @@ function renderLibraryTracks() {
     if (track.fileType === 'AD') typeLabel = 'Ad';
     if (track.fileType === 'JINGLE') typeLabel = 'Jingle';
     if (track.fileType === 'STATION_ID') typeLabel = 'Station ID';
+    if (track.fileType === 'NEWS') typeLabel = 'News';
+    if (track.fileType === 'SHOW') typeLabel = 'Show / Podcast';
+    if (track.fileType === 'FILLER') typeLabel = 'Filler';
 
     const categoriesStr = track.categories && track.categories.length > 0
       ? track.categories.map(c => `<span style="background: var(--primary-glow); border: 1px solid var(--primary-color); padding: 2px 6px; border-radius: 4px; font-size: 10px; color: var(--text-main); margin-right: 4px; white-space: nowrap;">${c.name}</span>`).join('')
