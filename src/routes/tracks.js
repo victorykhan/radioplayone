@@ -429,6 +429,17 @@ router.patch('/:id', authenticateJWT, requireRole(['ADMIN', 'PRODUCER', 'DJ']), 
   const trackId = parseInt(req.params.id);
   const updates = req.body;
 
+  let originalTrack;
+  try {
+    originalTrack = await prisma.track.findUnique({ where: { id: trackId } });
+    if (!originalTrack) {
+      return res.status(404).json({ error: 'Track not found' });
+    }
+  } catch (err) {
+    logger.error('Failed fetching original track: %O', err);
+    return res.status(500).json({ error: 'Failed to find track' });
+  }
+
   // Filter allowed fields to prevent arbitrary updates
   const allowedFields = [
     'title', 'artist', 'album', 'fileType', 'isExplicit',
@@ -470,11 +481,6 @@ router.patch('/:id', authenticateJWT, requireRole(['ADMIN', 'PRODUCER', 'DJ']), 
   }
 
   try {
-    const originalTrack = await prisma.track.findUnique({ where: { id: trackId } });
-    if (!originalTrack) {
-      return res.status(404).json({ error: 'Track not found' });
-    }
-
     const updatedTrack = await prisma.track.update({
       where: { id: trackId },
       data: filteredUpdates
