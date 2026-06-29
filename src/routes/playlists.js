@@ -52,7 +52,7 @@ router.get('/:id', authenticateJWT, async (req, res) => {
 
 // 3. Create playlist
 router.post('/', authenticateJWT, requireRole(['ADMIN', 'PRODUCER']), async (req, res) => {
-  const { name, isScheduled, scheduleTime, isLooping, isFallbackPool } = req.body;
+  const { name, isScheduled, scheduleTime, isLooping, isFallbackPool, color } = req.body;
 
   if (!name) {
     return res.status(400).json({ error: 'Playlist name is required' });
@@ -65,7 +65,8 @@ router.post('/', authenticateJWT, requireRole(['ADMIN', 'PRODUCER']), async (req
         isScheduled: !!isScheduled,
         scheduleTime: scheduleTime || null,
         isLooping: isLooping !== undefined ? !!isLooping : true,
-        isFallbackPool: !!isFallbackPool
+        isFallbackPool: !!isFallbackPool,
+        color: color || null
       }
     });
 
@@ -87,7 +88,7 @@ router.post('/', authenticateJWT, requireRole(['ADMIN', 'PRODUCER']), async (req
 // 4. Update playlist info (name, schedule, looping status)
 router.patch('/:id', authenticateJWT, requireRole(['ADMIN', 'PRODUCER']), async (req, res) => {
   const id = parseInt(req.params.id);
-  const { name, isScheduled, scheduleTime, isLooping, isFallbackPool } = req.body;
+  const { name, isScheduled, scheduleTime, isLooping, isFallbackPool, color } = req.body;
 
   try {
     const playlist = await prisma.playlist.findUnique({ where: { id } });
@@ -102,7 +103,8 @@ router.patch('/:id', authenticateJWT, requireRole(['ADMIN', 'PRODUCER']), async 
         isScheduled: isScheduled !== undefined ? !!isScheduled : playlist.isScheduled,
         scheduleTime: scheduleTime !== undefined ? scheduleTime : playlist.scheduleTime,
         isLooping: isLooping !== undefined ? !!isLooping : playlist.isLooping,
-        isFallbackPool: isFallbackPool !== undefined ? !!isFallbackPool : playlist.isFallbackPool
+        isFallbackPool: isFallbackPool !== undefined ? !!isFallbackPool : playlist.isFallbackPool,
+        color: color !== undefined ? color : playlist.color
       }
     });
 
@@ -291,7 +293,7 @@ router.get('/schedules/slots', authenticateJWT, async (req, res) => {
     const slots = await prisma.scheduleSlot.findMany({
       include: {
         playlist: {
-          select: { name: true }
+          select: { name: true, color: true }
         }
       },
       orderBy: { startAt: 'asc' }
@@ -303,6 +305,7 @@ router.get('/schedules/slots', authenticateJWT, async (req, res) => {
       playlistName: s.playlist.name,
       startAt: formatUTCToTimezone(s.startAt, tz),
       endAt: formatUTCToTimezone(s.endAt, tz),
+      color: s.color || s.playlist.color || '#00f0ff',
       createdAt: s.createdAt
     }));
 
@@ -315,7 +318,7 @@ router.get('/schedules/slots', authenticateJWT, async (req, res) => {
 
 // 10. Add a schedule slot (converts station timezone inputs to UTC)
 router.post('/schedules/slots', authenticateJWT, requireRole(['ADMIN', 'PRODUCER']), async (req, res) => {
-  const { playlistId, startAt, endAt } = req.body;
+  const { playlistId, startAt, endAt, color } = req.body;
 
   if (!playlistId || !startAt || !endAt) {
     return res.status(400).json({ error: 'playlistId, startAt, and endAt are required' });
@@ -360,7 +363,8 @@ router.post('/schedules/slots', authenticateJWT, requireRole(['ADMIN', 'PRODUCER
       data: {
         playlistId: parseInt(playlistId),
         startAt: startUTC,
-        endAt: endUTC
+        endAt: endUTC,
+        color: color || null
       }
     });
 
@@ -393,6 +397,12 @@ router.delete('/schedules/slots/:id', authenticateJWT, requireRole(['ADMIN', 'PR
       return res.status(404).json({ error: 'Schedule slot not found' });
     }
 
+    // Check if slot has already played/ended in UTC
+    const nowUTC = new Date();
+    if (slot.endAt < nowUTC) {
+      return res.status(400).json({ error: 'Cannot delete a scheduled slot that has already played.' });
+    }
+
     await prisma.scheduleSlot.delete({ where: { id } });
 
     await prisma.activityLog.create({
@@ -413,7 +423,7 @@ router.delete('/schedules/slots/:id', authenticateJWT, requireRole(['ADMIN', 'PR
 // 12. Update/Edit a schedule slot (converts station timezone inputs to UTC)
 router.patch('/schedules/slots/:id', authenticateJWT, requireRole(['ADMIN', 'PRODUCER']), async (req, res) => {
   const id = req.params.id;
-  const { playlistId, startAt, endAt } = req.body;
+  const { playlistId, startAt, endAt, color } = req.body;
 
   if (!playlistId || !startAt || !endAt) {
     return res.status(400).json({ error: 'playlistId, startAt, and endAt are required' });
@@ -465,7 +475,8 @@ router.patch('/schedules/slots/:id', authenticateJWT, requireRole(['ADMIN', 'PRO
       data: {
         playlistId: parseInt(playlistId),
         startAt: startUTC,
-        endAt: endUTC
+        endAt: endUTC,
+        color: color !== undefined ? color : slot.color
       }
     });
 

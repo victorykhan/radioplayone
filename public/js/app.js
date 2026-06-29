@@ -3816,8 +3816,9 @@ function removePlaylistTrack(playlistId, playlistTrackId) {
         const isScheduled = document.getElementById('playlist-scheduled-input').checked;
         const scheduleTime = document.getElementById('playlist-schedule-time-input').value;
         const isFallbackPool = document.getElementById('playlist-fallback-input').checked;
+        const color = document.getElementById('playlist-color-input').value;
 
-        const body = { name, isLooping, isScheduled, scheduleTime, isFallbackPool };
+        const body = { name, isLooping, isScheduled, scheduleTime, isFallbackPool, color };
 
         if (editingPlaylistId) {
           apiFetch(`/playlists/${editingPlaylistId}`, {
@@ -3915,6 +3916,7 @@ function removePlaylistTrack(playlistId, playlistTrackId) {
               document.getElementById('playlist-schedule-time-input').value = '';
             }
 
+            document.getElementById('playlist-color-input').value = playlist.color || '#00f0ff';
             document.getElementById('btn-submit-playlist').textContent = '💾 Update Playlist';
             document.getElementById('btn-cancel-edit-playlist').style.display = 'block';
           });
@@ -3932,6 +3934,7 @@ function resetPlaylistForm() {
   document.getElementById('playlist-scheduled-input').checked = false;
   document.getElementById('playlist-schedule-time-wrap').style.display = 'none';
   document.getElementById('playlist-schedule-time-input').value = '';
+  document.getElementById('playlist-color-input').value = '#00f0ff';
   document.getElementById('btn-submit-playlist').textContent = '➕ Create Playlist';
   document.getElementById('btn-cancel-edit-playlist').style.display = 'none';
 }
@@ -4043,9 +4046,12 @@ function loadScheduledSlots() {
       if (!calendarEl) return;
 
       const events = slots.map(slot => {
-        // Convert yyyy-mm-dd hh:mm to ISO string format "yyyy-mm-ddThh:mm"
         const startISO = slot.startAt.replace(' ', 'T');
         const endISO = slot.endAt.replace(' ', 'T');
+        
+        // Use custom color hex fallback structure
+        const hexColor = slot.color || '#00f0ff';
+        
         return {
           id: slot.id,
           title: slot.playlistName,
@@ -4054,10 +4060,11 @@ function loadScheduledSlots() {
           extendedProps: {
             playlistId: slot.playlistId,
             rawStart: slot.startAt,
-            rawEnd: slot.endAt
+            rawEnd: slot.endAt,
+            color: slot.color || ''
           },
-          backgroundColor: 'rgba(0, 240, 255, 0.15)',
-          borderColor: 'var(--primary-color)',
+          backgroundColor: hexColor + '26', // 15% opacity hex transparency
+          borderColor: hexColor,
           textColor: '#fff'
         };
       });
@@ -4084,7 +4091,6 @@ function loadScheduledSlots() {
       } else {
         calendarInstance.removeAllEvents();
         calendarInstance.addEventSource(events);
-        // Force size recalculation because tab visibility might have changed
         setTimeout(() => calendarInstance.updateSize(), 50);
       }
     })
@@ -4101,10 +4107,19 @@ function editScheduleSlot(event) {
   document.getElementById('schedule-playlist-select').value = event.extendedProps.playlistId;
   document.getElementById('schedule-start-at').value = startLocalStr;
   document.getElementById('schedule-end-at').value = endLocalStr;
+  document.getElementById('schedule-color-input').value = event.extendedProps.color || '#00f0ff';
 
   document.getElementById('btn-submit-scheduler').textContent = '💾 Update Show Slot';
-  document.getElementById('btn-delete-scheduler').style.display = 'block';
   document.getElementById('btn-cancel-edit-scheduler').style.display = 'block';
+
+  // Prevent deleting played slots in the UI
+  const now = new Date();
+  const slotEnd = new Date(event.end);
+  if (slotEnd < now) {
+    document.getElementById('btn-delete-scheduler').style.display = 'none';
+  } else {
+    document.getElementById('btn-delete-scheduler').style.display = 'block';
+  }
 
   document.getElementById('scheduler-form').scrollIntoView({ behavior: 'smooth' });
 }
@@ -4116,6 +4131,7 @@ function resetSchedulerForm() {
   document.getElementById('schedule-playlist-select').value = '';
   document.getElementById('schedule-start-at').value = '';
   document.getElementById('schedule-end-at').value = '';
+  document.getElementById('schedule-color-input').value = '#00f0ff';
 
   document.getElementById('btn-submit-scheduler').textContent = 'Schedule Show Slot';
   document.getElementById('btn-delete-scheduler').style.display = 'none';
@@ -4145,6 +4161,7 @@ function setupSchedulerEvents() {
       const playlistId = document.getElementById('schedule-playlist-select').value;
       const startAt = document.getElementById('schedule-start-at').value;
       const endAt = document.getElementById('schedule-end-at').value;
+      const color = document.getElementById('schedule-color-input').value;
       
       if (!playlistId || !startAt || !endAt) {
         showNotification('Please fill in all scheduling fields', 'info');
@@ -4156,7 +4173,7 @@ function setupSchedulerEvents() {
       
       apiFetch(url, {
         method,
-        body: { playlistId, startAt, endAt }
+        body: { playlistId, startAt, endAt, color }
       })
       .then(() => {
         showNotification(editingScheduleSlotId ? 'Show slot updated successfully' : 'Show slot scheduled successfully', 'success');

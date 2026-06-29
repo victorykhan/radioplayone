@@ -440,6 +440,10 @@
                   <label class="form-label">Scheduled Start (HH:MM)</label>
                   <input type="time" id="playlist-schedule-time-input" class="form-input">
                 </div>
+                <div class="form-group">
+                  <label class="form-label">Playlist Calendar Color</label>
+                  <input type="color" id="playlist-color-input" class="form-input" style="height: 40px; padding: 4px; cursor: pointer;" value="#00f0ff">
+                </div>
                 <button type="submit" id="btn-submit-playlist" class="form-input" style="background: var(--primary-color); color: #000; font-weight: 600; cursor: pointer; border: none; margin-top: 5px;">➕ Create Playlist</button>
                 <a id="btn-cancel-edit-playlist" style="display: none; text-align: center; font-size: 13px; color: var(--text-muted); cursor: pointer; text-decoration: underline; margin-top: 5px;">Cancel Editing</a>
               </form>
@@ -537,6 +541,10 @@
               <div class="form-group">
                 <label class="form-label">End Date & Time</label>
                 <input type="datetime-local" id="schedule-end-at" class="form-input" required>
+              </div>
+              <div class="form-group">
+                <label class="form-label">Custom Calendar Color (Override)</label>
+                <input type="color" id="schedule-color-input" class="form-input" style="height: 40px; padding: 4px; cursor: pointer;" value="#00f0ff">
               </div>
               <div style="display: flex; gap: 8px; flex-wrap: wrap;">
                 <button type="submit" id="btn-submit-scheduler" class="form-input" style="flex: 1; min-width: 120px; background: var(--primary-color); color: #000; border: none; font-weight: 600; cursor: pointer; margin-top: 10px;">Schedule Show Slot</button>
