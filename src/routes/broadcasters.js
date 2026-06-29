@@ -6,6 +6,7 @@ import { fileURLToPath } from 'url';
 import prisma from '../db.js';
 import logger from '../logger.js';
 import { authenticateJWT } from './auth.js';
+import playoutEngine from '../playout/engine.js';
 
 const router = express.Router();
 const __filename = fileURLToPath(import.meta.url);
@@ -23,9 +24,11 @@ async function recompilePlayoutConfig() {
 
     let templateContent = fs.readFileSync(templatePath, 'utf8');
 
-    // Fetch active broadcasters
+    // Fetch broadcasters that are NOT STOPPED
     const broadcasters = await prisma.remoteBroadcaster.findMany({
-      where: { isActive: true }
+      where: {
+        status: { not: 'STOPPED' }
+      }
     });
 
     let broadcasterBlocks = '';
@@ -45,6 +48,7 @@ output.icecast(${formatBlock},
   id="broadcaster_${b.id}",
   host="${b.host}",
   port=${b.port},
+  fallible=true,
 ${usernameLine}  password="${b.password}",
 ${mountLine}  name="${b.name}",
   stream)
@@ -57,6 +61,7 @@ output.shoutcast(${formatBlock},
   id="broadcaster_${b.id}",
   host="${b.host}",
   port=${b.port},
+  fallible=true,
   password="${b.password}",
   name="${b.name}",
   stream)
@@ -102,12 +107,14 @@ router.get('/', authenticateJWT, async (req, res) => {
 
 // 2. CREATE A BROADCASTER
 router.post('/', authenticateJWT, async (req, res) => {
-  const { name, host, port, mount, username, password, type, format, bitrate, isActive } = req.query.host ? req.query : req.body;
+  const { name, host, port, mount, username, password, type, format, bitrate, isActive, status } = req.query.host ? req.query : req.body;
   
   // Basic validation
   if (!name || !host || !port || !password || !type) {
     return res.status(400).json({ error: 'Missing required configuration fields' });
   }
+
+  const statusVal = status || (isActive === false ? 'STOPPED' : 'STARTED');
 
   try {
     const newBroadcaster = await prisma.remoteBroadcaster.create({
@@ -121,7 +128,8 @@ router.post('/', authenticateJWT, async (req, res) => {
         type: type.toUpperCase(),
         format: format || 'MP3',
         bitrate: parseInt(bitrate) || 128,
-        isActive: isActive === undefined ? true : Boolean(isActive)
+        isActive: isActive === undefined ? true : Boolean(isActive),
+        status: statusVal
       }
     });
 
@@ -138,7 +146,9 @@ router.post('/', authenticateJWT, async (req, res) => {
 // 3. UPDATE A BROADCASTER
 router.put('/:id', authenticateJWT, async (req, res) => {
   const { id } = req.params;
-  const { name, host, port, mount, username, password, type, format, bitrate, isActive } = req.body;
+  const { name, host, port, mount, username, password, type, format, bitrate, isActive, status } = req.body;
+
+  const statusVal = status || (isActive === false ? 'STOPPED' : (isActive === true ? 'STARTED' : undefined));
 
   try {
     const updated = await prisma.remoteBroadcaster.update({
@@ -153,7 +163,8 @@ router.put('/:id', authenticateJWT, async (req, res) => {
         type: type ? type.toUpperCase() : undefined,
         format,
         bitrate: bitrate ? parseInt(bitrate) : undefined,
-        isActive: isActive !== undefined ? Boolean(isActive) : undefined
+        isActive: isActive !== undefined ? Boolean(isActive) : undefined,
+        status: statusVal
       }
     });
 
@@ -181,6 +192,86 @@ router.delete('/:id', authenticateJWT, async (req, res) => {
   } catch (error) {
     logger.error('Failed to delete remote broadcaster: %O', error);
     res.status(500).json({ error: 'Failed to delete remote broadcaster' });
+  }
+});
+
+// 5. START / ACTIVATE BROADCASTER (Dynamic connection start)
+router.post('/:id/start', authenticateJWT, async (req, res) => {
+  const { id } = req.params;
+  try {
+    const b = await prisma.remoteBroadcaster.findUnique({ where: { id } });
+    if (!b) return res.status(404).json({ error: 'Broadcaster not found' });
+
+    const needsRecompile = b.status === 'STOPPED';
+
+    const updated = await prisma.remoteBroadcaster.update({
+      where: { id },
+      data: { status: 'STARTED', isActive: true }
+    });
+
+    if (needsRecompile) {
+      await recompilePlayoutConfig();
+    } else {
+      // Stream output already in script, send start via Telnet
+      try {
+        await playoutEngine.sendTelnetCommand(`broadcaster_${id}.start`);
+      } catch (telnetErr) {
+        logger.warn(`Could not send telnet start command to broadcaster_${id}: ${telnetErr.message}`);
+      }
+    }
+
+    res.json(updated);
+  } catch (error) {
+    logger.error('Failed to start remote broadcaster: %O', error);
+    res.status(500).json({ error: 'Failed to start remote broadcaster' });
+  }
+});
+
+// 6. PAUSE BROADCASTER (Dynamic pause - disconnects without stopping engine)
+router.post('/:id/pause', authenticateJWT, async (req, res) => {
+  const { id } = req.params;
+  try {
+    const b = await prisma.remoteBroadcaster.findUnique({ where: { id } });
+    if (!b) return res.status(404).json({ error: 'Broadcaster not found' });
+
+    const updated = await prisma.remoteBroadcaster.update({
+      where: { id },
+      data: { status: 'PAUSED', isActive: true }
+    });
+
+    // Send stop command to Liquidsoap via Telnet to disconnect
+    try {
+      await playoutEngine.sendTelnetCommand(`broadcaster_${id}.stop`);
+    } catch (telnetErr) {
+      logger.warn(`Could not send telnet stop command to broadcaster_${id}: ${telnetErr.message}`);
+    }
+
+    res.json(updated);
+  } catch (error) {
+    logger.error('Failed to pause remote broadcaster: %O', error);
+    res.status(500).json({ error: 'Failed to pause remote broadcaster' });
+  }
+});
+
+// 7. STOP BROADCASTER (Dynamic stop - completely disabled and removed from configuration)
+router.post('/:id/stop', authenticateJWT, async (req, res) => {
+  const { id } = req.params;
+  try {
+    const b = await prisma.remoteBroadcaster.findUnique({ where: { id } });
+    if (!b) return res.status(404).json({ error: 'Broadcaster not found' });
+
+    const updated = await prisma.remoteBroadcaster.update({
+      where: { id },
+      data: { status: 'STOPPED', isActive: false }
+    });
+
+    // Completely remove output and restart engine
+    await recompilePlayoutConfig();
+
+    res.json(updated);
+  } catch (error) {
+    logger.error('Failed to stop remote broadcaster: %O', error);
+    res.status(500).json({ error: 'Failed to stop remote broadcaster' });
   }
 });
 

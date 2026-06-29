@@ -388,7 +388,11 @@ let currentTrackElapsed = 0;
 let nowPlayingTimer = null;
 
 function pollNowPlaying() {
-  fetch(`${API_BASE}/public/now-playing`)
+  const headers = {};
+  if (jwtToken) {
+    headers['Authorization'] = `Bearer ${jwtToken}`;
+  }
+  fetch(`${API_BASE}/public/now-playing`, { headers })
     .then(res => res.json())
     .then(data => {
       updateStudioDeck(data.now_playing, data.isPaused, data.isStopped, data.isSourceConnected);
@@ -5013,10 +5017,11 @@ window.resetCampaignForm = resetCampaignForm;
         const password = document.getElementById('broadcaster-password').value;
         const format = document.getElementById('broadcaster-format').value;
         const bitrate = parseInt(document.getElementById('broadcaster-bitrate').value);
-        const isActive = document.getElementById('broadcaster-active').checked;
+        const status = document.getElementById('broadcaster-status').value;
+        const isActive = status !== 'STOPPED';
 
         const body = {
-          name, host, port, type, mount, username, password, format, bitrate, isActive
+          name, host, port, type, mount, username, password, format, bitrate, isActive, status
         };
 
         const method = id ? 'PUT' : 'POST';
@@ -5071,10 +5076,42 @@ window.resetCampaignForm = resetCampaignForm;
           const tr = document.createElement('tr');
           const destStr = `${b.host}:${b.port}${b.mount || ''}`;
           const formatStr = `${b.format} @ ${b.bitrate}k`;
-          const statusText = b.isActive ? 'Active' : 'Disabled';
-          const statusColor = b.isActive ? '#00ff66' : '#ff3e3e';
-          const statusBg = b.isActive ? 'rgba(0, 255, 102, 0.08)' : 'rgba(255, 62, 62, 0.08)';
-          const statusBorder = b.isActive ? 'rgba(0, 255, 102, 0.2)' : 'rgba(255, 62, 62, 0.2)';
+          
+          let statusText = 'Stopped';
+          let statusColor = '#ff3e3e';
+          let statusBg = 'rgba(255, 62, 62, 0.08)';
+          let statusBorder = 'rgba(255, 62, 62, 0.2)';
+
+          const statusVal = b.status || (b.isActive ? 'STARTED' : 'STOPPED');
+
+          if (statusVal === 'STARTED') {
+            statusText = 'Streaming';
+            statusColor = '#00ff66';
+            statusBg = 'rgba(0, 255, 102, 0.08)';
+            statusBorder = 'rgba(0, 255, 102, 0.2)';
+          } else if (statusVal === 'PAUSED') {
+            statusText = 'Paused';
+            statusColor = '#ffaa00';
+            statusBg = 'rgba(255, 170, 0, 0.08)';
+            statusBorder = 'rgba(255, 170, 0, 0.2)';
+          }
+
+          let controlBtns = '';
+          if (statusVal === 'STARTED') {
+            controlBtns = `
+              <button class="queue-action-btn btn-pause-broadcaster" style="padding: 4px 8px; font-size: 11px; margin-right: 5px; background: rgba(255, 170, 0, 0.15); color: #ffaa00; border-color: rgba(255, 170, 0, 0.3);">Pause</button>
+              <button class="queue-action-btn btn-stop-broadcaster" style="padding: 4px 8px; font-size: 11px; margin-right: 5px; background: rgba(255, 62, 62, 0.15); color: #ff3e3e; border-color: rgba(255, 62, 62, 0.3);">Stop</button>
+            `;
+          } else if (statusVal === 'PAUSED') {
+            controlBtns = `
+              <button class="queue-action-btn btn-start-broadcaster" style="padding: 4px 8px; font-size: 11px; margin-right: 5px; background: rgba(0, 255, 102, 0.15); color: #00ff66; border-color: rgba(0, 255, 102, 0.3);">Start</button>
+              <button class="queue-action-btn btn-stop-broadcaster" style="padding: 4px 8px; font-size: 11px; margin-right: 5px; background: rgba(255, 62, 62, 0.15); color: #ff3e3e; border-color: rgba(255, 62, 62, 0.3);">Stop</button>
+            `;
+          } else {
+            controlBtns = `
+              <button class="queue-action-btn btn-start-broadcaster" style="padding: 4px 8px; font-size: 11px; margin-right: 5px; background: rgba(0, 255, 102, 0.15); color: #00ff66; border-color: rgba(0, 255, 102, 0.3);">Start</button>
+            `;
+          }
 
           tr.innerHTML = `
             <td style="font-weight: 600;">${b.name}</td>
@@ -5086,10 +5123,28 @@ window.resetCampaignForm = resetCampaignForm;
               </span>
             </td>
             <td style="text-align: right; padding-right: 14px;">
+              ${controlBtns}
               <button class="queue-action-btn btn-edit-broadcaster" style="padding: 4px 8px; font-size: 11px; margin-right: 5px;">Edit</button>
               <button class="queue-action-btn queue-action-danger btn-delete-broadcaster" style="padding: 4px 8px; font-size: 11px;">Delete</button>
             </td>
           `;
+
+          // Event listeners for control buttons
+          tr.querySelector('.btn-start-broadcaster')?.addEventListener('click', () => {
+            apiFetch(`/broadcasters/${b.id}/start`, { method: 'POST' })
+              .then(() => { showNotification('Broadcaster stream output started', 'success'); loadRemoteBroadcasters(); })
+              .catch(err => showNotification(err.message, 'error'));
+          });
+          tr.querySelector('.btn-pause-broadcaster')?.addEventListener('click', () => {
+            apiFetch(`/broadcasters/${b.id}/pause`, { method: 'POST' })
+              .then(() => { showNotification('Broadcaster stream output paused', 'warning'); loadRemoteBroadcasters(); })
+              .catch(err => showNotification(err.message, 'error'));
+          });
+          tr.querySelector('.btn-stop-broadcaster')?.addEventListener('click', () => {
+            apiFetch(`/broadcasters/${b.id}/stop`, { method: 'POST' })
+              .then(() => { showNotification('Broadcaster stream output stopped', 'warning'); loadRemoteBroadcasters(); })
+              .catch(err => showNotification(err.message, 'error'));
+          });
 
           tr.querySelector('.btn-edit-broadcaster').addEventListener('click', () => editBroadcaster(b));
           tr.querySelector('.btn-delete-broadcaster').addEventListener('click', () => deleteBroadcaster(b.id, b.name));
@@ -5114,7 +5169,7 @@ window.resetCampaignForm = resetCampaignForm;
     document.getElementById('broadcaster-password').value = b.password;
     document.getElementById('broadcaster-format').value = b.format;
     document.getElementById('broadcaster-bitrate').value = b.bitrate;
-    document.getElementById('broadcaster-active').checked = b.isActive;
+    document.getElementById('broadcaster-status').value = b.status || (b.isActive ? 'STARTED' : 'STOPPED');
 
     document.getElementById('broadcaster-form-title').textContent = '✏️ Edit Remote Relay';
     document.getElementById('btn-submit-broadcaster').textContent = '💾 Save Changes';
@@ -5137,6 +5192,7 @@ window.resetCampaignForm = resetCampaignForm;
     editingBroadcasterId = null;
     document.getElementById('settings-broadcaster-form').reset();
     document.getElementById('broadcaster-id').value = '';
+    document.getElementById('broadcaster-status').value = 'STARTED';
     document.getElementById('broadcaster-form-title').textContent = 'Create Remote Relay Destination';
     document.getElementById('btn-submit-broadcaster').textContent = '＋ Add Remote Relay';
     document.getElementById('btn-cancel-broadcaster').style.display = 'none';
@@ -5145,7 +5201,11 @@ window.resetCampaignForm = resetCampaignForm;
   // Polls the now-playing API to get active live status details
   async function pollLiveDJStatus() {
     try {
-      const res = await fetch('/api/public/now-playing');
+      const headers = {};
+      if (jwtToken) {
+        headers['Authorization'] = `Bearer ${jwtToken}`;
+      }
+      const res = await fetch('/api/public/now-playing', { headers });
       if (!res.ok) return;
       const data = await res.json();
       const isDJConnected = Boolean(data.live_dj_active);

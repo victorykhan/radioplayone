@@ -60,6 +60,7 @@ output.icecast(%mp3(bitrate=128),
   mount="playout",
   name="RadioPlay Playout Stream",
   description="Automated Playout Feed",
+  fallible=true,
   stream)
 
 # === 4. DYNAMIC REMOTE BROADCASTERS ===

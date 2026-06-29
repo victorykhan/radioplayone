@@ -1246,9 +1246,14 @@
                   </select>
                 </div>
               </div>
-              <div class="form-group" style="display: flex; align-items: center; gap: 8px; margin-top: 10px;">
-                <input type="checkbox" id="broadcaster-active" checked style="width: auto; margin: 0; cursor: pointer;">
-                <label class="form-label" style="margin: 0; cursor: pointer;" for="broadcaster-active">Enable relay immediately</label>
+              <div class="form-group" style="margin-top: 10px;">
+                <label class="form-label">Relay Status</label>
+                <select id="broadcaster-status" class="form-input" style="cursor: pointer; background: rgba(0,0,0,0.3); color:#fff;">
+                  <option value="STARTED">Started (Active & Streaming)</option>
+                  <option value="PAUSED">Paused (Active but Disconnected)</option>
+                  <option value="STOPPED">Stopped (Completely Disabled)</option>
+                </select>
+                <input type="checkbox" id="broadcaster-active" checked style="display: none;">
               </div>
               <div style="display: flex; gap: 10px; margin-top: 10px;">
                 <button type="submit" id="btn-submit-broadcaster" class="form-input" style="background: var(--primary-color); color: #000; font-weight:600; cursor: pointer; border: none;">＋ Add Remote Relay</button>

@@ -229,6 +229,7 @@ model RemoteBroadcaster {
   format    String   @default("MP3") // "MP3" or "AAC"
   bitrate   Int      @default(128)   // 64, 128, 192, 256, 320
   isActive  Boolean  @default(true)
+  status    String   @default("STARTED") // "STARTED", "STOPPED", "PAUSED"
   createdAt DateTime @default(now())
 }
 

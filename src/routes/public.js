@@ -1,8 +1,8 @@
 import express from 'express';
+import jwt from 'jsonwebtoken';
 import playoutState from '../playout/state.js';
 import prisma from '../db.js';
 import logger from '../logger.js';
-
 import playoutEngine from '../playout/engine.js';
 
 const router = express.Router();
@@ -11,16 +11,31 @@ const router = express.Router();
 router.get('/now-playing', (req, res) => {
   res.setHeader('Access-Control-Allow-Origin', '*'); // Enable CORS for external websites
   res.setHeader('Content-Type', 'application/json');
+  
   const np = playoutState.getNowPlaying();
   np.isSourceConnected = playoutEngine.isSourceConnected;
   np.live_dj_active = playoutEngine.isDJLive;
 
-  // Mask AD/PROMO track types from the public streams
-  if (np.now_playing && (np.now_playing.fileType === 'AD' || np.now_playing.fileType === 'PROMO')) {
-    np.now_playing = null;
+  // Determine if requester is an authenticated operator (admin/producer/DJ)
+  let showAll = false;
+  const token = (req.headers.authorization && req.headers.authorization.split(' ')[1]) || req.query.token;
+  if (token) {
+    try {
+      jwt.verify(token, process.env.JWT_SECRET || 'your-fallback-secret-key-change-this');
+      showAll = true;
+    } catch (e) {
+      // Invalid token, treat as public
+    }
   }
-  if (np.up_next) {
-    np.up_next = np.up_next.filter(item => item.fileType !== 'AD' && item.fileType !== 'PROMO');
+
+  // Mask AD/PROMO track types from the public streams unless authenticated operator
+  if (!showAll) {
+    if (np.now_playing && (np.now_playing.fileType === 'AD' || np.now_playing.fileType === 'PROMO')) {
+      np.now_playing = null;
+    }
+    if (np.up_next) {
+      np.up_next = np.up_next.filter(item => item.fileType !== 'AD' && item.fileType !== 'PROMO');
+    }
   }
 
   res.json(np);
