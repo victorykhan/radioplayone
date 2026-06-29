@@ -132,7 +132,8 @@ class PlayoutEngine {
       }
 
       // 4.5. Check if we need to insert a Transition Sweeper (Layer 3 & 4 sequential transition)
-      if (this.musicCountSinceLastSweeper >= 3 && (!playoutState.queue || playoutState.queue.length === 0)) {
+      const sweeperInterval = await this.getSweeperInterval();
+      if (this.musicCountSinceLastSweeper >= sweeperInterval && (!playoutState.queue || playoutState.queue.length === 0)) {
         const nextSong = await this.peekNextScheduledTrack();
         if (nextSong && nextSong.fileType === 'SONG') {
           const transitionTrack = await this.findMatchingImaging(nextSong, 'TRANSITION');
@@ -677,6 +678,44 @@ class PlayoutEngine {
     }
   }
 
+  // Get dynamic sweeper interval (default: 3) supporting global custom settings and daypart overrides
+  async getSweeperInterval() {
+    try {
+      // 1. Check if there are active daypart overrides
+      const setting = await prisma.systemSetting.findUnique({ where: { key: 'sweeper_dayparts' } });
+      if (setting && setting.value) {
+        const dayparts = JSON.parse(setting.value); // Array of { startHour, endHour, interval }
+        const currentHour = new Date().getHours();
+        
+        const activeDaypart = dayparts.find(dp => {
+          const start = parseInt(dp.startHour);
+          const end = parseInt(dp.endHour);
+          if (start <= end) {
+            return currentHour >= start && currentHour <= end;
+          } else {
+            // Overnights (e.g. 22:00 to 04:00)
+            return currentHour >= start || currentHour <= end;
+          }
+        });
+        
+        if (activeDaypart && activeDaypart.interval) {
+          const val = parseInt(activeDaypart.interval);
+          if (!isNaN(val) && val > 0) return val;
+        }
+      }
+
+      // 2. Fall back to global custom default interval
+      const globalSetting = await prisma.systemSetting.findUnique({ where: { key: 'sweeper_interval' } });
+      if (globalSetting && globalSetting.value) {
+        const val = parseInt(globalSetting.value);
+        if (!isNaN(val) && val > 0) return val;
+      }
+    } catch (e) {
+      logger.error('Failed retrieving sweeper interval settings: %s', e.message);
+    }
+    return 3; // Standard fallback
+  }
+
   // Helper to find a matching imaging track for a given song based on rules
   async findMatchingImaging(song, playMode) {
     try {
@@ -798,7 +837,8 @@ class PlayoutEngine {
   // Fetch a dynamic imaging sweeper track automatically every X tracks
   async fetchNextImagingForLiquidsoap() {
     try {
-      if (this.musicCountSinceLastSweeper >= 3) {
+      const sweeperInterval = await this.getSweeperInterval();
+      if (this.musicCountSinceLastSweeper >= sweeperInterval) {
         const song = playoutState.currentTrack;
         const track = await this.findMatchingImaging(song, 'OVERLAY');
         if (track) {
