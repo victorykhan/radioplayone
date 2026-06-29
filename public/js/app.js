@@ -3589,6 +3589,9 @@ function removePlaylistTrack(playlistId, playlistTrackId) {
         e.preventDefault();
 
         const name = document.getElementById('playlist-name-input').value;
+        const isLooping = document.getElementById('playlist-looping-input').checked;
+        const isScheduled = document.getElementById('playlist-scheduled-input').checked;
+        const scheduleTime = document.getElementById('playlist-schedule-time-input').value;
         const isFallbackPool = document.getElementById('playlist-fallback-input').checked;
 
         const body = { name, isLooping, isScheduled, scheduleTime, isFallbackPool };
@@ -3679,6 +3682,7 @@ function removePlaylistTrack(playlistId, playlistTrackId) {
             document.getElementById('playlist-name-input').value = playlist.name;
             document.getElementById('playlist-looping-input').checked = playlist.isLooping;
             document.getElementById('playlist-fallback-input').checked = playlist.isFallbackPool || false;
+            document.getElementById('playlist-scheduled-input').checked = playlist.isScheduled || false;
             
             if (playlist.isScheduled && playlist.scheduleTime) {
               document.getElementById('playlist-schedule-time-wrap').style.display = 'block';
@@ -3820,9 +3824,9 @@ function loadScheduledSlots() {
       slots.forEach(slot => {
         const tr = document.createElement('tr');
         tr.innerHTML = `
-          <td><strong>${slot.playlist.name}</strong></td>
-          <td>${new Date(slot.startAt).toLocaleString()}</td>
-          <td>${new Date(slot.endAt).toLocaleString()}</td>
+          <td><strong>${slot.playlistName}</strong></td>
+          <td>${slot.startAt}</td>
+          <td>${slot.endAt}</td>
           <td style="text-align: center;">
             <button class="queue-action-btn queue-action-danger" style="padding: 4px 8px; font-size: 11px;" onclick="deleteScheduleSlot('${slot.id}')">Delete</button>
           </td>
