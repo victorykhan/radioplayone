@@ -187,8 +187,12 @@ router.get('/campaign/:id/report', authenticateJWT, async (req, res) => {
     // Fetch all play log entries for these ads
     const logs = await prisma.playLog.findMany({
       where: {
-        trackId: { in: adTrackIds },
-        wasAd: true
+        trackId: { in: adTrackIds }
+      },
+      include: {
+        track: {
+          select: { title: true, artist: true }
+        }
       },
       orderBy: { playedAt: 'desc' }
     });
@@ -197,13 +201,10 @@ router.get('/campaign/:id/report', authenticateJWT, async (req, res) => {
     const totalPlays = logs.length;
     const completedPlays = logs.filter(l => l.status === 'COMPLETED').length;
     
-    // Total impressions: sum of average audience size per play
-    const totalImpressions = logs.reduce((sum, l) => {
-      const avgAudience = (l.listenersStart + l.listenersEnd) / 2;
-      return sum + avgAudience;
-    }, 0);
+    // Total impressions: sum of listener counts
+    const totalImpressions = logs.reduce((sum, l) => sum + (l.listenerCount || 0), 0);
 
-    const completionRate = totalPlays > 0 ? ((completedPlays / totalPlays) * 100).toFixed(1) : 0;
+    const completionRate = campaign.targetPlays > 0 ? ((totalPlays / campaign.targetPlays) * 100).toFixed(1) : 0;
     const revenueGenerated = (campaign.cpc * totalPlays).toFixed(2);
 
     res.json({
@@ -214,21 +215,23 @@ router.get('/campaign/:id/report', authenticateJWT, async (req, res) => {
         targetPlays: campaign.targetPlays,
         targetImpressions: campaign.targetImpressions,
         startDate: campaign.startDate,
-        endDate: campaign.endDate
+        endDate: campaign.endDate,
+        cpc: campaign.cpc
       },
       summary: {
         totalPlays,
         completedPlays,
         completionRate: parseFloat(completionRate),
-        totalImpressions: Math.round(totalImpressions),
+        totalImpressions,
         revenueGenerated: parseFloat(revenueGenerated)
       },
       playLogs: logs.map(l => ({
         playedAt: l.playedAt,
         duration: l.durationPlayed,
         status: l.status,
-        audienceStart: l.listenersStart,
-        audienceEnd: l.listenersEnd
+        audience: l.listenerCount,
+        title: l.track.title,
+        artist: l.track.artist || 'Unknown'
       }))
     });
 

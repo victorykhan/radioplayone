@@ -4275,6 +4275,7 @@ function loadCampaigns() {
             </span>
           </td>
           <td>
+            <button class="control-btn" onclick="viewCampaignReport('${c.id}')" style="font-size: 13px; margin-right: 5px;" title="View Proof-of-Play Audit Report">📊</button>
             <button class="control-btn" onclick="editCampaign('${c.id}')" style="font-size: 13px; margin-right: 5px;">✏️</button>
             <button class="control-btn" onclick="deleteCampaign('${c.id}')" style="font-size: 13px; color:#ff3e3e;">🗑️</button>
           </td>
@@ -4285,6 +4286,11 @@ function loadCampaigns() {
     .catch(err => console.error('Failed loading campaigns summary:', err));
 }
 window.loadCampaigns = loadCampaigns;
+
+function viewCampaignReport(id) {
+  window.open(`/campaign-analytics.html?id=${id}`, '_blank');
+}
+window.viewCampaignReport = viewCampaignReport;
 
 function populateCampaignTracksSelect() {
   const select = document.getElementById('campaign-tracks-select');

@@ -1,0 +1,458 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Advertiser Proof-of-Play Campaign Audit - RadioPlay</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <style>
+    :root {
+      --bg-main: #060608;
+      --bg-card: rgba(18, 18, 24, 0.8);
+      --border-card: rgba(255, 255, 255, 0.08);
+      --primary-color: #00f0ff;
+      --primary-glow: rgba(0, 240, 255, 0.25);
+      --secondary-color: #7000ff;
+      --secondary-glow: rgba(112, 0, 255, 0.25);
+      --text-main: #f3f4f6;
+      --text-muted: #9ca3af;
+      --success-color: #00ff66;
+      --error-color: #ff3e3e;
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    body {
+      font-family: 'Outfit', sans-serif;
+      background-color: var(--bg-main);
+      color: var(--text-main);
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      padding: 40px 20px;
+      overflow-y: auto;
+      background-image: 
+        radial-gradient(circle at 10% 20%, rgba(0, 240, 255, 0.03) 0%, transparent 40%),
+        radial-gradient(circle at 90% 80%, rgba(112, 0, 255, 0.04) 0%, transparent 40%);
+      background-attachment: fixed;
+    }
+
+    .container {
+      width: 100%;
+      max-width: 1000px;
+      display: flex;
+      flex-direction: column;
+      gap: 24px;
+    }
+
+    .glass-card {
+      background: var(--bg-card);
+      border: 1px solid var(--border-card);
+      border-radius: 16px;
+      padding: 24px;
+      backdrop-filter: blur(16px);
+      box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.37);
+    }
+
+    .header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      flex-wrap: wrap;
+      gap: 16px;
+    }
+
+    .title-group h1 {
+      font-size: 28px;
+      font-weight: 700;
+      letter-spacing: -0.5px;
+      background: linear-gradient(135deg, #fff 30%, var(--primary-color) 100%);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+    }
+
+    .title-group p {
+      color: var(--text-muted);
+      font-size: 14px;
+      margin-top: 4px;
+    }
+
+    .stats-row {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+      gap: 16px;
+    }
+
+    .stat-card {
+      text-align: center;
+      padding: 20px;
+      border-radius: 12px;
+      background: rgba(255,255,255,0.015);
+      border: 1px solid rgba(255,255,255,0.03);
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+    }
+
+    .stat-label {
+      font-size: 11px;
+      font-weight: 600;
+      color: var(--text-muted);
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+
+    .stat-value {
+      font-size: 28px;
+      font-weight: 700;
+    }
+
+    .chart-container {
+      height: 300px;
+      position: relative;
+    }
+
+    .table-container {
+      width: 100%;
+      overflow-x: auto;
+    }
+
+    .library-table {
+      width: 100%;
+      border-collapse: collapse;
+      text-align: left;
+      font-size: 13px;
+    }
+
+    .library-table th {
+      padding: 12px 16px;
+      color: var(--text-muted);
+      font-weight: 600;
+      border-bottom: 1px solid var(--border-card);
+      text-transform: uppercase;
+      font-size: 10px;
+      letter-spacing: 0.5px;
+    }
+
+    .library-table td {
+      padding: 14px 16px;
+      border-bottom: 1px solid rgba(255,255,255,0.03);
+    }
+
+    .library-table tr:hover td {
+      background: rgba(255,255,255,0.01);
+    }
+
+    .btn {
+      background: rgba(255,255,255,0.05);
+      border: 1px solid var(--border-card);
+      border-radius: 6px;
+      color: var(--text-main);
+      padding: 0 16px;
+      height: 32px;
+      cursor: pointer;
+      font-size: 12px;
+      font-weight: 600;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 6px;
+      transition: all 0.2s;
+    }
+
+    .btn:hover {
+      background: rgba(255,255,255,0.08);
+      border-color: rgba(255,255,255,0.15);
+    }
+
+    .btn-primary {
+      background: rgba(0, 240, 255, 0.1);
+      border-color: rgba(0, 240, 255, 0.25);
+      color: var(--primary-color);
+    }
+
+    .btn-primary:hover {
+      background: rgba(0, 240, 255, 0.15);
+      border-color: var(--primary-color);
+      box-shadow: 0 0 10px rgba(0, 240, 255, 0.15);
+    }
+
+    /* Print styling rules */
+    @media print {
+      body {
+        background: #fff !important;
+        color: #000 !important;
+        padding: 0 !important;
+      }
+      .glass-card {
+        background: #fff !important;
+        border: 1px solid #ddd !important;
+        box-shadow: none !important;
+        color: #000 !important;
+        page-break-inside: avoid;
+      }
+      .btn, header button, .title-group + div {
+        display: none !important;
+      }
+      .title-group h1 {
+        background: none !important;
+        -webkit-text-fill-color: #000 !important;
+        color: #000 !important;
+      }
+      .library-table th {
+        color: #333 !important;
+        border-bottom: 2px solid #333 !important;
+      }
+      .library-table td {
+        border-bottom: 1px solid #ddd !important;
+        color: #000 !important;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <!-- Header -->
+    <div class="glass-card header">
+      <div class="title-group">
+        <h1 id="campaign-title">Loading Campaign Report...</h1>
+        <p id="campaign-subtitle">Retrieving real-time contract plays and audited proof of play logs</p>
+      </div>
+      <div style="display: flex; gap: 10px;">
+        <button class="btn btn-primary" onclick="exportToCSV()">📥 Download CSV</button>
+        <button class="btn" onclick="window.print()">🖨️ Export PDF / Print</button>
+        <button class="btn" onclick="window.close()">✕ Close</button>
+      </div>
+    </div>
+
+    <!-- Stats row -->
+    <div class="stats-row">
+      <div class="glass-card stat-card">
+        <span class="stat-label">Actual Playouts</span>
+        <span class="stat-value" id="stat-actual" style="color: var(--primary-color);">0</span>
+      </div>
+      <div class="glass-card stat-card">
+        <span class="stat-label">Contract Target</span>
+        <span class="stat-value" id="stat-target" style="color: #7000ff;">0</span>
+      </div>
+      <div class="glass-card stat-card">
+        <span class="stat-label">Impressions</span>
+        <span class="stat-value" id="stat-impressions" style="color: var(--success-color);">0</span>
+      </div>
+      <div class="glass-card stat-card">
+        <span class="stat-label">Accrued Revenue</span>
+        <span class="stat-value" id="stat-revenue" style="color: #ffb700;">$0.00</span>
+      </div>
+    </div>
+
+    <!-- Progress Card -->
+    <div class="glass-card" style="display: flex; flex-direction: column; gap: 10px;">
+      <div style="display: flex; justify-content: space-between; font-weight: 600; font-size: 14px;">
+        <span>Contract Completion Progress</span>
+        <span id="progress-percent-label">0%</span>
+      </div>
+      <div style="width: 100%; height: 12px; background: rgba(255,255,255,0.06); border-radius: 6px; overflow: hidden; border: 1px solid rgba(255,255,255,0.04);">
+        <div id="progress-bar-fill" style="width: 0%; height: 100%; background: linear-gradient(90deg, var(--primary-color), var(--success-color)); transition: width 0.4s;"></div>
+      </div>
+    </div>
+
+    <!-- Timeseries Chart -->
+    <div class="glass-card">
+      <h3 style="font-weight: 600; margin-bottom: 20px;">Playout Frequency Over Time</h3>
+      <div class="chart-container">
+        <canvas id="campaign-chart"></canvas>
+      </div>
+    </div>
+
+    <!-- Details Table -->
+    <div class="glass-card">
+      <h3 style="font-weight: 600; margin-bottom: 16px;">Audited Proof-of-Play Log</h3>
+      <div class="table-container">
+        <table class="library-table" id="audit-table">
+          <thead>
+            <tr>
+              <th>Timestamp</th>
+              <th>Ad Track Name</th>
+              <th>Artist</th>
+              <th>Duration (s)</th>
+              <th>Audience (Impressions)</th>
+              <th>Status</th>
+            </tr>
+          </thead>
+          <tbody id="audit-table-body">
+            <tr><td colspan="6" style="text-align: center; color: var(--text-muted); padding: 20px 0;">Loading play logs...</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    const urlParams = new URLSearchParams(window.location.search);
+    const campaignId = urlParams.get('id');
+    const jwtToken = localStorage.getItem('jwt');
+    let chartInstance = null;
+    let campaignData = null;
+
+    if (!campaignId) {
+      document.getElementById('campaign-title').textContent = 'Error: Campaign Not Specified';
+    }
+
+    function loadReport() {
+      if (!campaignId) return;
+
+      fetch(`/api/analytics/campaign/${campaignId}/report`, {
+        headers: { 'Authorization': `Bearer ${jwtToken}` }
+      })
+      .then(res => {
+        if (!res.ok) throw new Error('Failed to retrieve campaign details');
+        return res.json();
+      })
+      .then(data => {
+        campaignData = data;
+
+        // Set Info
+        document.getElementById('campaign-title').textContent = data.campaign.name;
+        document.getElementById('campaign-subtitle').textContent = `Client: ${data.campaign.client} | Contract: ${new Date(data.campaign.startDate).toLocaleDateString()} - ${new Date(data.campaign.endDate).toLocaleDateString()}`;
+
+        // Set Metrics
+        document.getElementById('stat-actual').textContent = data.summary.totalPlays;
+        document.getElementById('stat-target').textContent = data.campaign.targetPlays;
+        document.getElementById('stat-impressions').textContent = data.summary.totalImpressions;
+        document.getElementById('stat-revenue').textContent = `$${data.summary.revenueGenerated.toFixed(2)}`;
+
+        // Progress
+        const progress = Math.min(100, Math.round((data.summary.totalPlays / data.campaign.targetPlays) * 100));
+        document.getElementById('progress-percent-label').textContent = `${progress}% Complete`;
+        document.getElementById('progress-bar-fill').style.width = `${progress}%`;
+
+        // Render Table
+        const tbody = document.getElementById('audit-table-body');
+        tbody.innerHTML = '';
+
+        if (data.playLogs.length === 0) {
+          tbody.innerHTML = `<tr><td colspan="6" style="text-align: center; color: var(--text-muted); padding: 30px 0;">No play logs recorded yet.</td></tr>`;
+          return;
+        }
+
+        data.playLogs.forEach(log => {
+          const tr = document.createElement('tr');
+          const timestamp = new Date(log.playedAt).toLocaleString();
+          
+          tr.innerHTML = `
+            <td style="font-weight: 500;">${timestamp}</td>
+            <td style="font-weight: 600;">${log.title}</td>
+            <td>${log.artist}</td>
+            <td>${Math.round(log.duration)}s</td>
+            <td>${log.audience} listener(s)</td>
+            <td>
+              <span style="color: ${log.status === 'COMPLETED' ? 'var(--success-color)' : 'var(--error-color)'}; font-weight: 600;">
+                ${log.status}
+              </span>
+            </td>
+          `;
+          tbody.appendChild(tr);
+        });
+
+        // Render Chart
+        renderChart(data.playLogs);
+      })
+      .catch(err => {
+        console.error(err);
+        document.getElementById('campaign-title').textContent = 'Error Loading Report';
+      });
+    }
+
+    function renderChart(playLogs) {
+      const ctx = document.getElementById('campaign-chart').getContext('2d');
+      if (chartInstance) chartInstance.destroy();
+
+      // Aggregate plays by date
+      const datesMap = {};
+      const reversedLogs = [...playLogs].reverse(); // oldest first
+
+      reversedLogs.forEach(log => {
+        const dateStr = new Date(log.playedAt).toLocaleDateString();
+        datesMap[dateStr] = (datesMap[dateStr] || 0) + 1;
+      });
+
+      const labels = Object.keys(datesMap);
+      const values = Object.values(datesMap);
+
+      chartInstance = new Chart(ctx, {
+        type: 'line',
+        data: {
+          labels: labels,
+          datasets: [{
+            label: 'Ad Playouts per Day',
+            data: values,
+            borderColor: '#00f0ff',
+            backgroundColor: 'rgba(0, 240, 255, 0.1)',
+            fill: true,
+            tension: 0.3,
+            borderWidth: 3,
+            pointBackgroundColor: '#00f0ff'
+          }]
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          scales: {
+            x: {
+              grid: { display: false },
+              ticks: { color: '#9ca3af', font: { family: 'Outfit' } }
+            },
+            y: {
+              beginAtZero: true,
+              grid: { color: 'rgba(255, 255, 255, 0.05)' },
+              ticks: { color: '#9ca3af', stepSize: 1, font: { family: 'Outfit' } }
+            }
+          },
+          plugins: {
+            legend: {
+              labels: { color: '#f3f4f6', font: { family: 'Outfit' } }
+            }
+          }
+        }
+      });
+    }
+
+    function exportToCSV() {
+      if (!campaignData || campaignData.playLogs.length === 0) return;
+
+      let csvContent = "data:text/csv;charset=utf-8,";
+      csvContent += "Timestamp,Ad Title,Artist,Duration Played (s),Listener Impressions,Status\n";
+
+      campaignData.playLogs.forEach(log => {
+        const timestamp = new Date(log.playedAt).toLocaleString().replace(/,/g, '');
+        const title = log.title.replace(/,/g, '');
+        const artist = log.artist.replace(/,/g, '');
+        const row = `"${timestamp}","${title}","${artist}",${Math.round(log.duration)},${log.audience},"${log.status}"`;
+        csvContent += row + "\r\n";
+      });
+
+      const encodedUri = encodeURI(csvContent);
+      const link = document.createElement("a");
+      link.setAttribute("href", encodedUri);
+      
+      const filename = `${campaignData.campaign.name.toLowerCase().replace(/\s+/g, '_')}_audit_report.csv`;
+      link.setAttribute("download", filename);
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+    }
+
+    if (jwtToken) {
+      loadReport();
+    }
+  </script>
+</body>
+</html>
