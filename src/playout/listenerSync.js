@@ -92,11 +92,17 @@ async function syncListeners() {
         // Perform Geo-IP lookup
         let country = 'Unknown';
         let city = 'Unknown';
+        let latitude = null;
+        let longitude = null;
         if (ip && ip !== '127.0.0.1' && !ip.startsWith('192.168.') && !ip.startsWith('10.')) {
           const geo = geoip.lookup(ip);
           if (geo) {
             country = geo.country || 'Unknown';
             city = geo.city || 'Unknown';
+            if (geo.ll) {
+              latitude = geo.ll[0];
+              longitude = geo.ll[1];
+            }
           }
         }
 
@@ -109,12 +115,14 @@ async function syncListeners() {
             ipHash,
             country,
             city,
+            latitude,
+            longitude,
             userAgent: listener.ua || 'Unknown',
             deviceType,
             duration: listener.connected
           }
         });
-        logger.info('Listener Sync: Logged new listener connection. Session: %s, Country: %s, Device: %s', session.id, country, deviceType);
+        logger.info('Listener Sync: Logged new listener connection. Session: %s, Country: %s, Lat: %s, Lng: %s, Device: %s', session.id, country, latitude, longitude, deviceType);
       } else {
         // Update duration
         await prisma.listenerSession.update({

@@ -308,6 +308,51 @@ router.get('/track/:id', authenticateJWT, async (req, res) => {
     const totalPlays = playLogs.length;
     const avgListeners = totalPlays > 0 ? (totalListeners / totalPlays) : 0;
 
+    // Query listener sessions that overlap with when the track played
+    const geographics = [];
+    if (playLogs.length > 0) {
+      const conditions = playLogs.map(log => {
+        const start = log.playedAt;
+        const end = new Date(start.getTime() + (log.durationPlayed || 0) * 1000);
+        return {
+          connectedAt: { lte: end },
+          OR: [
+            { disconnectedAt: null },
+            { disconnectedAt: { gte: start } }
+          ]
+        };
+      });
+
+      const sessions = await prisma.listenerSession.findMany({
+        where: {
+          OR: conditions
+        },
+        select: {
+          country: true,
+          city: true,
+          latitude: true,
+          longitude: true
+        }
+      });
+
+      // Cluster by location key
+      const locationsMap = {};
+      sessions.forEach(s => {
+        const key = `${s.country}_${s.city}_${s.latitude}_${s.longitude}`;
+        if (!locationsMap[key]) {
+          locationsMap[key] = {
+            country: s.country,
+            city: s.city,
+            latitude: s.latitude,
+            longitude: s.longitude,
+            count: 0
+          };
+        }
+        locationsMap[key].count++;
+      });
+      geographics.push(...Object.values(locationsMap));
+    }
+
     res.json({
       track: {
         id: trackId,
@@ -321,12 +366,64 @@ router.get('/track/:id', authenticateJWT, async (req, res) => {
         totalHours: parseFloat((totalSeconds / 3600).toFixed(2)),
         avgListeners: parseFloat(avgListeners.toFixed(1))
       },
-      history: history.reverse() // Chronological order for chart
+      history: history.reverse(), // Chronological order for chart
+      geographics
     });
 
   } catch (error) {
     logger.error('Failed to get per-track analytics: %O', error);
     res.status(500).json({ error: 'Failed to retrieve track stats' });
+  }
+});
+
+// GET /api/analytics/campaigns/summary - Campaign billing report
+router.get('/campaigns/summary', authenticateJWT, async (req, res) => {
+  try {
+    const campaigns = await prisma.campaign.findMany({
+      include: {
+        ads: {
+          include: { track: true }
+        }
+      }
+    });
+
+    const summary = [];
+    for (const campaign of campaigns) {
+      const trackIds = campaign.ads.map(ad => ad.trackId);
+      
+      const logs = await prisma.playLog.findMany({
+        where: {
+          trackId: { in: trackIds }
+        },
+        select: {
+          listenerCount: true
+        }
+      });
+
+      const totalPlays = logs.length;
+      const totalImpressions = logs.reduce((sum, log) => sum + (log.listenerCount || 0), 0);
+      const totalEarnings = parseFloat((totalPlays * campaign.cpc).toFixed(2));
+
+      summary.push({
+        id: campaign.id,
+        clientName: campaign.clientName,
+        name: campaign.name,
+        startDate: campaign.startDate,
+        endDate: campaign.endDate,
+        targetPlays: campaign.targetPlays,
+        currentPlays: totalPlays,
+        targetImpressions: campaign.targetImpressions,
+        currentImpressions: totalImpressions,
+        cpc: campaign.cpc,
+        earnings: totalEarnings,
+        isActive: campaign.isActive
+      });
+    }
+
+    res.json(summary);
+  } catch (error) {
+    logger.error('Failed to get campaigns summary report: %O', error);
+    res.status(500).json({ error: 'Failed to retrieve campaigns report summary' });
   }
 });
 

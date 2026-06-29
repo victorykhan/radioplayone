@@ -124,6 +124,7 @@ document.addEventListener('DOMContentLoaded', () => {
   setupAudioPlayer();
   setupLiveMonitor();
   setupAnalyticsControls();
+  setupCampaignsEvents();
 
   // Poll now playing every 4 seconds
   setInterval(pollNowPlaying, 4000);
@@ -365,6 +366,9 @@ function switchView(viewName) {
   }
   if (viewName === 'imaging-library') {
     loadImagingLibraryTracks();
+  }
+  if (viewName === 'campaigns') {
+    loadCampaigns();
   }
   
   if (viewName === 'system') {
@@ -4224,4 +4228,237 @@ function triggerInstantSwap(trackId) {
   });
 }
 window.triggerInstantSwap = triggerInstantSwap;
+
+// === AD CAMPAIGNS MODULE ===
+let editingCampaignId = null;
+
+function loadCampaigns() {
+  // Populate the tracks multi-select dropdown with AD/PROMO tracks
+  populateCampaignTracksSelect();
+
+  // Load active campaigns list summary
+  apiFetch('/analytics/campaigns/summary')
+    .then(campaigns => {
+      const tbody = document.getElementById('campaigns-table-body');
+      if (!tbody) return;
+      tbody.innerHTML = '';
+
+      if (campaigns.length === 0) {
+        tbody.innerHTML = `<tr><td colspan="9" style="text-align: center; color: var(--text-muted); padding: 35px 0;">No ad campaigns configured.</td></tr>`;
+        return;
+      }
+
+      campaigns.forEach(c => {
+        const start = new Date(c.startDate).toLocaleDateString();
+        const end = new Date(c.endDate).toLocaleDateString();
+        const progressPercent = c.targetPlays > 0 ? Math.min(100, Math.round((c.currentPlays / c.targetPlays) * 100)) : 0;
+        
+        const tr = document.createElement('tr');
+        tr.innerHTML = `
+          <td style="font-weight: 700; color: var(--text-main);">${c.name}</td>
+          <td>${c.clientName}</td>
+          <td style="font-size: 11px; color: var(--text-muted);">${start} - ${end}</td>
+          <td>
+            <div style="display: flex; flex-direction: column; gap: 4px;">
+              <span style="font-weight: 600;">${c.currentPlays} / ${c.targetPlays} plays</span>
+              <div style="width: 100px; height: 6px; background: rgba(255,255,255,0.08); border-radius: 3px; overflow: hidden;">
+                <div style="width: ${progressPercent}%; height: 100%; background: var(--primary-color);"></div>
+              </div>
+            </div>
+          </td>
+          <td>${c.currentImpressions}</td>
+          <td>$${c.cpc.toFixed(2)}</td>
+          <td style="font-weight: 700; color: var(--success-color);">$${c.earnings.toFixed(2)}</td>
+          <td>
+            <span style="background: ${c.isActive ? 'rgba(0,255,102,0.1)' : 'rgba(255,62,62,0.1)'}; border: 1px solid ${c.isActive ? 'rgba(0,255,102,0.2)' : 'rgba(255,62,62,0.25)'}; color: ${c.isActive ? '#00ff66' : '#ff3e3e'}; padding: 2px 6px; border-radius: 4px; font-size: 11px;">
+              ${c.isActive ? 'Active' : 'Paused'}
+            </span>
+          </td>
+          <td>
+            <button class="control-btn" onclick="editCampaign('${c.id}')" style="font-size: 13px; margin-right: 5px;">✏️</button>
+            <button class="control-btn" onclick="deleteCampaign('${c.id}')" style="font-size: 13px; color:#ff3e3e;">🗑️</button>
+          </td>
+        `;
+        tbody.appendChild(tr);
+      });
+    })
+    .catch(err => console.error('Failed loading campaigns summary:', err));
+}
+window.loadCampaigns = loadCampaigns;
+
+function populateCampaignTracksSelect() {
+  const select = document.getElementById('campaign-tracks-select');
+  if (!select) return;
+
+  apiFetch('/tracks?limit=1000&fileType=ALL')
+    .then(res => {
+      const tracks = Array.isArray(res) ? res : (res.tracks || []);
+      const adPromoTracks = tracks.filter(t => t.fileType === 'AD' || t.fileType === 'PROMO');
+      
+      select.innerHTML = '';
+      if (adPromoTracks.length === 0) {
+        select.innerHTML = '<option value="">No Ads/Promos in library</option>';
+        return;
+      }
+
+      adPromoTracks.forEach(track => {
+        const opt = document.createElement('option');
+        opt.value = track.id;
+        opt.textContent = `[${track.fileType}] ${track.title} (${Math.round(track.duration)}s)`;
+        select.appendChild(opt);
+      });
+    })
+    .catch(err => console.error('Failed loading tracks for campaigns dropdown:', err));
+}
+
+function setupCampaignsEvents() {
+  const form = document.getElementById('form-create-campaign');
+  if (form) {
+    form.addEventListener('submit', (e) => {
+      e.preventDefault();
+
+      const clientName = document.getElementById('campaign-client-input').value;
+      const clientIndustry = document.getElementById('campaign-industry-input').value;
+      const name = document.getElementById('campaign-name-input').value;
+      const startDate = document.getElementById('campaign-start-input').value;
+      const endDate = document.getElementById('campaign-end-input').value;
+      const targetPlays = document.getElementById('campaign-plays-input').value;
+      const cpc = document.getElementById('campaign-cpc-input').value;
+      const dailyCap = document.getElementById('campaign-daily-cap-input').value;
+      const hourlyCap = document.getElementById('campaign-hourly-cap-input').value;
+      const validHoursStart = document.getElementById('campaign-hours-start-input').value;
+      const validHoursEnd = document.getElementById('campaign-hours-end-input').value;
+      const priority = document.getElementById('campaign-priority-input').value;
+      const isActive = document.getElementById('campaign-active-input').checked;
+
+      // Extract selected track IDs from multiple select element
+      const tracksSelect = document.getElementById('campaign-tracks-select');
+      const trackIds = Array.from(tracksSelect.selectedOptions).map(option => option.value).filter(val => val !== '');
+
+      if (trackIds.length === 0) {
+        showNotification('Please select at least one campaign track (Ad/Promo)', 'error');
+        return;
+      }
+
+      const payload = {
+        clientName,
+        clientIndustry,
+        name,
+        startDate,
+        endDate,
+        targetPlays,
+        cpc,
+        dailyCap,
+        hourlyCap,
+        validHoursStart,
+        validHoursEnd,
+        priority,
+        isActive,
+        trackIds
+      };
+
+      const method = editingCampaignId ? 'PATCH' : 'POST';
+      const url = editingCampaignId ? `/campaigns/${editingCampaignId}` : '/campaigns';
+
+      apiFetch(url, {
+        method,
+        body: payload
+      })
+      .then(() => {
+        showNotification(editingCampaignId ? 'Campaign updated successfully!' : 'Campaign created successfully!', 'success');
+        resetCampaignForm();
+        loadCampaigns();
+      })
+      .catch(err => showNotification(err.message, 'error'));
+    });
+
+    const cancelEditBtn = document.getElementById('btn-cancel-edit-campaign');
+    if (cancelEditBtn) {
+      cancelEditBtn.addEventListener('click', () => {
+        resetCampaignForm();
+      });
+    }
+  }
+}
+window.setupCampaignsEvents = setupCampaignsEvents;
+
+function editCampaign(id) {
+  apiFetch('/campaigns')
+    .then(campaigns => {
+      const c = campaigns.find(item => item.id === id);
+      if (!c) return;
+
+      editingCampaignId = c.id;
+      document.getElementById('campaign-form-title').textContent = '✏️ Edit Ad Campaign';
+      document.getElementById('campaign-client-input').value = c.clientName;
+      document.getElementById('campaign-industry-input').value = c.clientIndustry;
+      document.getElementById('campaign-name-input').value = c.name;
+
+      // Date formatting to YYYY-MM-DD for form date fields
+      document.getElementById('campaign-start-input').value = new Date(c.startDate).toISOString().split('T')[0];
+      document.getElementById('campaign-end-input').value = new Date(c.endDate).toISOString().split('T')[0];
+
+      document.getElementById('campaign-plays-input').value = c.targetPlays;
+      document.getElementById('campaign-cpc-input').value = c.cpc;
+      document.getElementById('campaign-daily-cap-input').value = c.dailyCap;
+      document.getElementById('campaign-hourly-cap-input').value = c.hourlyCap;
+      document.getElementById('campaign-hours-start-input').value = c.validHoursStart ?? 0;
+      document.getElementById('campaign-hours-end-input').value = c.validHoursEnd ?? 23;
+      document.getElementById('campaign-priority-input').value = c.priority || 3;
+      document.getElementById('campaign-active-input').checked = c.isActive;
+
+      // Select associated track options
+      const tracksSelect = document.getElementById('campaign-tracks-select');
+      const associatedIds = c.ads.map(ad => String(ad.trackId));
+      
+      Array.from(tracksSelect.options).forEach(opt => {
+        opt.selected = associatedIds.includes(opt.value);
+      });
+
+      document.getElementById('btn-submit-campaign').textContent = '💾 Save Changes';
+      document.getElementById('btn-cancel-edit-campaign').style.display = 'block';
+    })
+    .catch(err => console.error('Failed loading campaign to edit:', err));
+}
+window.editCampaign = editCampaign;
+
+function deleteCampaign(id) {
+  showConfirm('Delete Campaign', 'Are you sure you want to permanently delete this ad campaign? This action is permanent.', () => {
+    apiFetch(`/campaigns/${id}`, { method: 'DELETE' })
+      .then(() => {
+        showNotification('Campaign deleted successfully', 'warning');
+        if (editingCampaignId === id) resetCampaignForm();
+        loadCampaigns();
+      })
+      .catch(err => showNotification(err.message, 'error'));
+  });
+}
+window.deleteCampaign = deleteCampaign;
+
+function resetCampaignForm() {
+  editingCampaignId = null;
+  document.getElementById('campaign-form-title').textContent = 'Create Ad Campaign';
+  document.getElementById('campaign-client-input').value = '';
+  document.getElementById('campaign-industry-input').value = '';
+  document.getElementById('campaign-name-input').value = '';
+  document.getElementById('campaign-start-input').value = '';
+  document.getElementById('campaign-end-input').value = '';
+  document.getElementById('campaign-plays-input').value = '';
+  document.getElementById('campaign-cpc-input').value = '';
+  document.getElementById('campaign-daily-cap-input').value = '50';
+  document.getElementById('campaign-hourly-cap-input').value = '5';
+  document.getElementById('campaign-hours-start-input').value = '0';
+  document.getElementById('campaign-hours-end-input').value = '23';
+  document.getElementById('campaign-priority-input').value = '3';
+  document.getElementById('campaign-active-input').checked = true;
+
+  const tracksSelect = document.getElementById('campaign-tracks-select');
+  if (tracksSelect) {
+    Array.from(tracksSelect.options).forEach(opt => opt.selected = false);
+  }
+
+  document.getElementById('btn-submit-campaign').textContent = '➕ Create Campaign';
+  document.getElementById('btn-cancel-edit-campaign').style.display = 'none';
+}
+window.resetCampaignForm = resetCampaignForm;
 

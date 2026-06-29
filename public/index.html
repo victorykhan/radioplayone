@@ -102,6 +102,7 @@
         <li><a class="nav-item" data-view="library">📁 Music Library</a></li>
         <li><a class="nav-item" data-view="imaging-library">🎙️ Imaging Library</a></li>
         <li><a class="nav-item" data-view="playlists">📋 Playlists</a></li>
+        <li><a class="nav-item" data-view="campaigns">💰 Ad Campaigns</a></li>
         <li><a class="nav-item" data-view="analytics">📈 Analytics</a></li>
         <li><a class="nav-item" data-view="settings">⚙️ Settings</a></li>
         <li><a class="nav-item" data-view="system">💻 System Status</a></li>
@@ -551,6 +552,130 @@
                   <tr><td colspan="4" style="text-align: center; color: var(--text-muted); padding: 20px 0;">Loading scheduled slots...</td></tr>
                 </tbody>
               </table>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- SECTION: AD CAMPAIGNS -->
+      <section id="section-campaigns" class="view-section">
+        <div class="section-header">
+          <h1 class="section-title">💰 Ad Campaigns & Commercial Rotations</h1>
+          <p style="color: var(--text-muted);">Configure Layer 5 ad scheduler inserts, client contracts, and billing audits</p>
+        </div>
+
+        <div style="display: grid; grid-template-columns: 350px 1fr; gap: 30px;">
+          <!-- LEFT PANEL: CAMPAIGN CRUD -->
+          <div style="display: flex; flex-direction: column; gap: 20px;">
+            <!-- Campaign Creator Form -->
+            <div class="glass-card">
+              <h3 id="campaign-form-title" style="font-weight: 600; margin-bottom: 15px;">Create Ad Campaign</h3>
+              <form id="form-create-campaign" style="display: flex; flex-direction: column; gap: 12px;">
+                <div class="form-group">
+                  <label class="form-label">Client Name</label>
+                  <input type="text" id="campaign-client-input" class="form-input" placeholder="e.g. Acme Corp" required>
+                </div>
+                <div class="form-group">
+                  <label class="form-label">Client Industry</label>
+                  <input type="text" id="campaign-industry-input" class="form-input" placeholder="e.g. Automotive" required>
+                </div>
+                <div class="form-group">
+                  <label class="form-label">Campaign Name</label>
+                  <input type="text" id="campaign-name-input" class="form-input" placeholder="e.g. Summer Blowout 2026" required>
+                </div>
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px;">
+                  <div class="form-group">
+                    <label class="form-label">Start Date</label>
+                    <input type="date" id="campaign-start-input" class="form-input" required>
+                  </div>
+                  <div class="form-group">
+                    <label class="form-label">End Date</label>
+                    <input type="date" id="campaign-end-input" class="form-input" required>
+                  </div>
+                </div>
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px;">
+                  <div class="form-group">
+                    <label class="form-label">Contract Plays</label>
+                    <input type="number" id="campaign-plays-input" class="form-input" placeholder="500" required min="1">
+                  </div>
+                  <div class="form-group">
+                    <label class="form-label">Cost Per Play ($)</label>
+                    <input type="number" id="campaign-cpc-input" class="form-input" placeholder="0.25" step="0.01" required min="0">
+                  </div>
+                </div>
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px;">
+                  <div class="form-group">
+                    <label class="form-label">Daily Play Cap</label>
+                    <input type="number" id="campaign-daily-cap-input" class="form-input" value="50" required min="1">
+                  </div>
+                  <div class="form-group">
+                    <label class="form-label">Hourly Play Cap</label>
+                    <input type="number" id="campaign-hourly-cap-input" class="form-input" value="5" required min="1">
+                  </div>
+                </div>
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px;">
+                  <div class="form-group">
+                    <label class="form-label">Hours Start (0-23)</label>
+                    <input type="number" id="campaign-hours-start-input" class="form-input" value="0" min="0" max="23">
+                  </div>
+                  <div class="form-group">
+                    <label class="form-label">Hours End (0-23)</label>
+                    <input type="number" id="campaign-hours-end-input" class="form-input" value="23" min="0" max="23">
+                  </div>
+                </div>
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px; align-items: center;">
+                  <div class="form-group">
+                    <label class="form-label">Priority Weight (1-5)</label>
+                    <select id="campaign-priority-input" class="form-input" style="background: rgba(0,0,0,0.3); color:#fff; cursor: pointer;">
+                      <option value="1">1 (Low)</option>
+                      <option value="2">2</option>
+                      <option value="3" selected>3 (Normal)</option>
+                      <option value="4">4</option>
+                      <option value="5">5 (High)</option>
+                    </select>
+                  </div>
+                  <div class="form-group" style="display: flex; align-items: center; gap: 8px; margin-top: 15px;">
+                    <input type="checkbox" id="campaign-active-input" checked style="width: auto; margin: 0; cursor: pointer;">
+                    <label class="form-label" style="margin: 0; cursor: pointer;" for="campaign-active-input">Is Active</label>
+                  </div>
+                </div>
+                <div class="form-group">
+                  <label class="form-label">Select Campaign Tracks (AD / PROMO)</label>
+                  <select id="campaign-tracks-select" class="form-input" multiple style="height: 100px; background: rgba(0,0,0,0.3); cursor: pointer;" required>
+                    <option value="">Loading ads...</option>
+                  </select>
+                  <span style="font-size: 10px; color: var(--text-muted); margin-top: 4px;">Hold Ctrl to select multiple tracks</span>
+                </div>
+                <button type="submit" id="btn-submit-campaign" class="form-input" style="background: var(--primary-color); color: #000; font-weight: 600; cursor: pointer; border: none; margin-top: 5px;">➕ Create Campaign</button>
+                <a id="btn-cancel-edit-campaign" style="display: none; text-align: center; font-size: 13px; color: var(--text-muted); cursor: pointer; text-decoration: underline; margin-top: 5px;">Cancel Editing</a>
+              </form>
+            </div>
+          </div>
+
+          <!-- RIGHT PANEL: CAMPAIGNS SUMMARY LIST -->
+          <div style="display: flex; flex-direction: column; gap: 20px;">
+            <div class="glass-card">
+              <h3 style="font-weight: 600; margin-bottom: 15px;">Active Campaigns</h3>
+              <div class="table-container">
+                <table class="library-table">
+                  <thead>
+                    <tr>
+                      <th>Campaign Name</th>
+                      <th>Client</th>
+                      <th>Schedule Dates</th>
+                      <th>Progress (Plays)</th>
+                      <th>Impressions</th>
+                      <th>CPC</th>
+                      <th>Revenue</th>
+                      <th>Status</th>
+                      <th style="width: 110px;">Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody id="campaigns-table-body">
+                    <tr><td colspan="9" style="text-align: center; color: var(--text-muted); padding: 20px 0;">Loading campaigns...</td></tr>
+                  </tbody>
+                </table>
+              </div>
             </div>
           </div>
         </div>

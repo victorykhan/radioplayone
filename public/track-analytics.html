@@ -8,6 +8,8 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
   <style>
     :root {
       --bg-main: #060608;
@@ -305,6 +307,12 @@
       </div>
     </div>
 
+    <!-- Geo Map -->
+    <div class="glass-card">
+      <h3 style="font-weight: 600; margin-bottom: 16px;">🌍 Listener Geographical Map</h3>
+      <div id="geo-map" style="height: 380px; border-radius: 12px; border: 1px solid var(--border-card); overflow: hidden; background: #0c0d12;"></div>
+    </div>
+
     <!-- Details Table -->
     <div class="glass-card">
       <h3 style="font-weight: 600; margin-bottom: 16px;">Full Performance History</h3>
@@ -424,9 +432,58 @@
 
         // Render Time Series Chart
         renderChart(res.history);
+
+        // Render Geographical Map
+        renderGeoMap(res.geographics || []);
       })
       .catch(err => {
         showToast(err.message, 'error');
+      });
+    }
+
+    let mapInstance = null;
+
+    function renderGeoMap(geographics) {
+      const container = document.getElementById('geo-map');
+      if (!container) return;
+
+      if (mapInstance) {
+        mapInstance.remove();
+        mapInstance = null;
+      }
+
+      // Filter points containing coordinates
+      const validPoints = geographics.filter(pt => pt.latitude !== null && pt.longitude !== null);
+
+      let center = [30, 0];
+      let zoom = 2;
+
+      if (validPoints.length > 0) {
+        center = [validPoints[0].latitude, validPoints[0].longitude];
+        zoom = 4;
+      }
+
+      mapInstance = L.map('geo-map', {
+        zoomControl: true,
+        scrollWheelZoom: false
+      }).setView(center, zoom);
+
+      // Load clean visual tiles (using CartoDB Dark Matter or Voyager for beautiful premium dark UI match!)
+      L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
+        attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors &copy; <a href="https://carto.com/attributions">CARTO</a>',
+        subdomains: 'abcd',
+        maxZoom: 20
+      }).addTo(mapInstance);
+
+      // Render pins
+      validPoints.forEach(pt => {
+        const marker = L.marker([pt.latitude, pt.longitude]).addTo(mapInstance);
+        marker.bindPopup(`
+          <div style="color: #0c0d12; font-family: 'Outfit', sans-serif; font-size: 13px; line-height: 1.4; padding: 4px;">
+            <strong style="font-size: 14px; color: #7000ff;">📍 ${pt.city}, ${pt.country}</strong><br/>
+            <span style="font-weight: 600; color: #555;">Audience Size: ${pt.count} listener(s)</span>
+          </div>
+        `);
       });
     }
 

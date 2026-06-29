@@ -140,6 +140,8 @@ model ListenerSession {
   ipHash         String    // SHA-256 hash of IP (For GDPR/Privacy Compliance)
   country        String    @default("Unknown") // Geo-IP country code (e.g., "CA", "US")
   city           String    @default("Unknown")
+  latitude       Float?
+  longitude      Float?
   userAgent      String?
   deviceType     String    @default("Desktop") // Desktop, Mobile, Smart Speaker, Media Player
   connectedAt    DateTime  @default(now())
@@ -167,6 +169,8 @@ model Campaign {
   hourlyCap         Int       // Max plays per hour
   validHoursStart   Int       @default(0)
   validHoursEnd     Int       @default(23)
+  priority          Int       @default(1) // Priority scale weight (1 to 5)
+  isActive          Boolean   @default(true)
   
   ads               AdTrack[]
 }

@@ -29,6 +29,7 @@ class PlayoutEngine {
     this.isSourceConnected = true;
     this.activeScheduleSlotId = null; // Track current scheduled calendar slot
     this.musicCountSinceLastSweeper = 0; // Tracks songs played since last sweeper insert
+    this.musicCountSinceLastAd = 0; // Tracks songs played since last ad insert
     
     this.generateSilenceTrack();
   }
@@ -118,7 +119,19 @@ class PlayoutEngine {
         return cTrack;
       }
 
-      // 4. Fall through to standard queue/scheduler selection
+      // 4. Check if we need to insert an Ad (Layer 5)
+      if (this.musicCountSinceLastAd >= 3 && (!playoutState.queue || playoutState.queue.length === 0)) {
+        const adTrack = await this.fetchNextAdTrack();
+        if (adTrack) {
+          this.musicCountSinceLastAd = 0; // Reset counter
+          this.loadingTrack = adTrack;
+          this.loadingIsCart = false;
+          logger.info('Liquidsoap: Serving campaign ad break: "%s"', adTrack.title);
+          return adTrack;
+        }
+      }
+
+      // 5. Fall through to standard queue/scheduler selection
       const nextTrack = await this.fetchNextTrack();
       if (nextTrack) {
         this.loadingTrack = nextTrack;
@@ -177,10 +190,32 @@ class PlayoutEngine {
       });
       logger.info('PlayLog created for: "%s"', track.title);
 
-      // Increment song counter to schedule sweeper intervals
+      // Increment campaign play counts if this is an ad/promo track
+      if (track.fileType === 'AD' || track.fileType === 'PROMO') {
+        try {
+          const adTrackRef = await prisma.adTrack.findFirst({
+            where: { trackId: track.id },
+            include: { campaign: true }
+          });
+          if (adTrackRef && adTrackRef.campaign) {
+            await prisma.campaign.update({
+              where: { id: adTrackRef.campaignId },
+              data: {
+                currentPlays: { increment: 1 }
+              }
+            });
+            logger.info('PlayoutEngine: Incremented plays for Campaign "%s" (current: %s)', adTrackRef.campaign.name, adTrackRef.campaign.currentPlays + 1);
+          }
+        } catch (err) {
+          logger.error('PlayoutEngine: Failed to update campaign stats: %s', err.message);
+        }
+      }
+
+      // Increment song counter to schedule sweeper and ad intervals
       if (track.fileType === 'SONG') {
         this.musicCountSinceLastSweeper++;
-        logger.debug('PlayoutEngine: Incremented musicCountSinceLastSweeper. Current: %s', this.musicCountSinceLastSweeper);
+        this.musicCountSinceLastAd++;
+        logger.debug('PlayoutEngine: Incremented song counters. Sweeper: %s, Ad: %s', this.musicCountSinceLastSweeper, this.musicCountSinceLastAd);
       }
     }
   }
@@ -543,6 +578,87 @@ class PlayoutEngine {
     } catch (error) {
       logger.error('Failed performing instant track swap: %O', error);
       throw error;
+    }
+  }
+
+  // Fetch next campaign ad track based on priority-weighted lag and cap constraints
+  async fetchNextAdTrack() {
+    try {
+      const now = new Date();
+      const currentHour = now.getHours();
+
+      // Find all active campaigns by date and isActive flag
+      const activeCampaigns = await prisma.campaign.findMany({
+        where: {
+          startDate: { lte: now },
+          endDate: { gte: now },
+          isActive: true
+        },
+        include: {
+          ads: {
+            include: { track: true }
+          }
+        }
+      });
+
+      const eligibleCampaigns = [];
+
+      for (const campaign of activeCampaigns) {
+        // Contract limit check
+        if (campaign.currentPlays >= campaign.targetPlays) continue;
+
+        // Hour range constraint check
+        if (currentHour < campaign.validHoursStart || currentHour > campaign.validHoursEnd) continue;
+
+        const trackIds = campaign.ads.map(ad => ad.trackId);
+        if (trackIds.length === 0) continue;
+
+        // Cap constraints check
+        const oneHourAgo = new Date(now.getTime() - 60 * 60 * 1000);
+        const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+
+        const playsThisHour = await prisma.playLog.count({
+          where: {
+            trackId: { in: trackIds },
+            playedAt: { gte: oneHourAgo }
+          }
+        });
+        if (playsThisHour >= campaign.hourlyCap) continue;
+
+        const playsToday = await prisma.playLog.count({
+          where: {
+            trackId: { in: trackIds },
+            playedAt: { gte: startOfToday }
+          }
+        });
+        if (playsToday >= campaign.dailyCap) continue;
+
+        // Priority lag ratio calculation
+        const totalDuration = campaign.endDate - campaign.startDate;
+        const timeElapsed = now - campaign.startDate;
+        const expectedPlays = totalDuration > 0 ? (timeElapsed / totalDuration) * campaign.targetPlays : campaign.targetPlays;
+        // Priority multiplier
+        const priorityScore = (expectedPlays - campaign.currentPlays) * (campaign.priority || 1);
+
+        eligibleCampaigns.push({ campaign, score: priorityScore });
+      }
+
+      if (eligibleCampaigns.length === 0) return null;
+
+      // Sort by priority score descending
+      eligibleCampaigns.sort((a, b) => b.score - a.score);
+      const selectedCampaign = eligibleCampaigns[0].campaign;
+
+      const adsList = selectedCampaign.ads.filter(ad => !ad.track.isDeleted);
+      if (adsList.length === 0) return null;
+
+      const randomAd = adsList[Math.floor(Math.random() * adsList.length)].track;
+      randomAd.playoutSource = `Ad Campaign: ${selectedCampaign.name}`;
+      return randomAd;
+
+    } catch (err) {
+      logger.error('PlayoutEngine: Failed to fetch next ad track: %s', err.message);
+      return null;
     }
   }
 
