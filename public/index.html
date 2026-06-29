@@ -1149,6 +1149,30 @@
                 </table>
               </div>
             </div>
+
+            <hr style="border: 0; border-top: 1px solid rgba(255,255,255,0.08); margin: 20px 0;">
+
+            <!-- Playout Frequency Config -->
+            <div>
+              <h4 style="font-weight: 600; margin-bottom: 8px; font-size: 14px; color: var(--primary-color);">📻 Sweeper Playout Spacing Frequency</h4>
+              <p style="color: var(--text-muted); font-size: 12px; margin-bottom: 16px;">Configure how many music tracks play between automatically triggered sweepers/jingles.</p>
+              
+              <form id="sweeper-frequency-form" style="display: flex; flex-direction: column; gap: 14px; background: rgba(255,255,255,0.015); border: 1px solid rgba(255,255,255,0.04); padding: 18px; border-radius: 10px;">
+                <div class="form-group">
+                  <label class="form-label">Global Default Interval (Songs)</label>
+                  <input type="number" id="settings-sweeper-global-interval" class="form-input" min="1" value="3" required>
+                  <span style="font-size: 10px; color: var(--text-muted); display: block; margin-top: 4px;">Default is 3 (plays a jingle after every 3 songs).</span>
+                </div>
+
+                <div class="form-group" style="margin-bottom: 0;">
+                  <label class="form-label">Hourly Daypart Overrides (JSON Array)</label>
+                  <textarea id="settings-sweeper-dayparts-json" class="form-input" style="font-family: monospace; height: 90px; font-size: 12px;" placeholder='[{"startHour": 18, "endHour": 19, "interval": 12}]'></textarea>
+                  <span style="font-size: 10px; color: var(--text-muted); display: block; margin-top: 4px;">Specify custom hours (0-23) to override the spacing frequency. For example: <code>[{"startHour": 18, "endHour": 19, "interval": 999}]</code> completely silences jingles during your 6 PM show.</span>
+                </div>
+
+                <button type="submit" class="form-input" style="background: rgba(255,255,255,0.06); border-color: rgba(255,255,255,0.1); cursor: pointer; color: var(--text-main); font-weight:600; margin-top: 4px;">💾 Save Spacing Settings</button>
+              </form>
+            </div>
           </div>
         </div>
       </section>

@@ -1605,6 +1605,13 @@ function loadThemeSettings() {
       document.getElementById('settings-broadcast-mount').textContent = data.broadcast.mount;
       document.getElementById('settings-broadcast-username').textContent = data.broadcast.username;
     }
+
+    // Populate sweeper spacing inputs
+    const globalInput = document.getElementById('settings-sweeper-global-interval');
+    const daypartsInput = document.getElementById('settings-sweeper-dayparts-json');
+    if (globalInput) globalInput.value = data.sweeper_interval !== undefined ? data.sweeper_interval : 3;
+    if (daypartsInput) daypartsInput.value = data.sweeper_dayparts ? JSON.stringify(data.sweeper_dayparts, null, 2) : '';
+
     loadDefaultCovers();
   });
 }
@@ -1804,6 +1811,48 @@ function setupForms() {
     })
     .catch(err => showNotification(err.message, 'error'));
   });
+
+  // Sweeper Spacing form submission
+  const sweeperFreqForm = document.getElementById('sweeper-frequency-form');
+  if (sweeperFreqForm) {
+    sweeperFreqForm.addEventListener('submit', (e) => {
+      e.preventDefault();
+      const globalInterval = parseInt(document.getElementById('settings-sweeper-global-interval').value);
+      const daypartsJson = document.getElementById('settings-sweeper-dayparts-json').value;
+      
+      let dayparts = [];
+      if (daypartsJson.trim() !== '') {
+        try {
+          dayparts = JSON.parse(daypartsJson);
+          if (!Array.isArray(dayparts)) throw new Error("Must be a JSON Array of dayparts");
+          
+          for (const dp of dayparts) {
+            if (dp.startHour === undefined || dp.endHour === undefined || dp.interval === undefined) {
+              throw new Error("Each daypart must have startHour, endHour, and interval attributes");
+            }
+          }
+        } catch (err) {
+          return showNotification("Invalid Dayparts JSON: " + err.message, 'error');
+        }
+      }
+      
+      apiFetch('/settings', {
+        method: 'POST',
+        body: { key: 'sweeper_interval', value: globalInterval }
+      })
+      .then(() => {
+        return apiFetch('/settings', {
+          method: 'POST',
+          body: { key: 'sweeper_dayparts', value: dayparts }
+        });
+      })
+      .then(() => {
+        showNotification('Sweeper playout spacing configurations saved successfully!', 'success');
+        loadSystemSettings();
+      })
+      .catch(err => showNotification(err.message, 'error'));
+    });
+  }
 }
 
 // === ANALYTICS VIEW POPULATION ===
