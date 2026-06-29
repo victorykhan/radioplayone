@@ -30,6 +30,7 @@ class PlayoutEngine {
     this.activeScheduleSlotId = null; // Track current scheduled calendar slot
     this.musicCountSinceLastSweeper = 0; // Tracks songs played since last sweeper insert
     this.musicCountSinceLastAd = 0; // Tracks songs played since last ad insert
+    this.isDJLive = false; // Tracks if a live DJ is streaming on Icecast
     
     this.generateSilenceTrack();
   }
@@ -73,6 +74,22 @@ class PlayoutEngine {
    */
   async fetchNextTrackForLiquidsoap() {
     try {
+      // 0. If DJ is live, serve safety silence to pause automated playout
+      if (this.isDJLive) {
+        logger.info('Liquidsoap: DJ is live. Serving safety silence track to pause playout.');
+        const silencePath = path.resolve(__dirname, '../../storage/silence.mp3');
+        return {
+          id: -1,
+          title: 'Live DJ Session',
+          artist: 'Live Broadcast',
+          duration: 5,
+          filePath: silencePath,
+          fileType: 'SILENCE',
+          cueStart: 0,
+          cueEnd: 5
+        };
+      }
+
       // 1. Check if we need to play an instant cart track
       if (this.cartTrackToPlay) {
         const track = this.cartTrackToPlay;
@@ -184,6 +201,11 @@ class PlayoutEngine {
     playoutState.isStopped = false;
     playoutState.isPaused = false;
     playoutState.startedAt = new Date();
+
+    if (track.fileType === 'SILENCE') {
+      logger.debug('PlayoutEngine: Silence track started (DJ is live). Skipping database logs.');
+      return;
+    }
 
     if (!isCart) {
       playoutState.setCurrentTrack(track);

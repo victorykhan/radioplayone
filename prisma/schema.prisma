@@ -217,3 +217,19 @@ model ImagingElement {
   track       Track    @relation(fields: [trackId], references: [id], onDelete: Cascade)
 }
 
+model RemoteBroadcaster {
+  id        String   @id @default(uuid())
+  name      String   // E.g., "ZenoRadio Relay"
+  host      String   // E.g., "stream.zeno.fm"
+  port      Int
+  mount     String?  // Optional mount point (for Icecast)
+  username  String?  // Optional username (usually 'source')
+  password  String
+  type      String   // "ICECAST" or "SHOUTCAST"
+  format    String   @default("MP3") // "MP3" or "AAC"
+  bitrate   Int      @default(128)   // 64, 128, 192, 256, 320
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+}
+
+

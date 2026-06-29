@@ -4985,3 +4985,193 @@ function resetCampaignForm() {
 }
 window.resetCampaignForm = resetCampaignForm;
 
+// === REMOTE BROADCASTERS & DJ STATUS MODULE ===
+(function initBroadcastersModule() {
+  let editingBroadcasterId = null;
+
+  window.addEventListener('load', () => {
+    // 1. Hook settings tab click event to load remote broadcasters
+    document.querySelectorAll('.nav-item[data-view="settings"]').forEach(btn => {
+      btn.addEventListener('click', () => {
+        loadRemoteBroadcasters();
+      });
+    });
+
+    // 2. Setup form submission for Remote Broadcasters
+    const form = document.getElementById('settings-broadcaster-form');
+    if (form) {
+      form.addEventListener('submit', (e) => {
+        e.preventDefault();
+        
+        const id = document.getElementById('broadcaster-id').value;
+        const name = document.getElementById('broadcaster-name').value;
+        const host = document.getElementById('broadcaster-host').value;
+        const port = parseInt(document.getElementById('broadcaster-port').value);
+        const type = document.getElementById('broadcaster-type').value;
+        const mount = document.getElementById('broadcaster-mount').value;
+        const username = document.getElementById('broadcaster-username').value;
+        const password = document.getElementById('broadcaster-password').value;
+        const format = document.getElementById('broadcaster-format').value;
+        const bitrate = parseInt(document.getElementById('broadcaster-bitrate').value);
+        const isActive = document.getElementById('broadcaster-active').checked;
+
+        const body = {
+          name, host, port, type, mount, username, password, format, bitrate, isActive
+        };
+
+        const method = id ? 'PUT' : 'POST';
+        const url = id ? `/broadcasters/${id}` : '/broadcasters';
+
+        apiFetch(url, {
+          method,
+          body
+        })
+        .then(() => {
+          showNotification(id ? 'Remote relay updated successfully!' : 'Remote relay added successfully!', 'success');
+          resetBroadcasterForm();
+          loadRemoteBroadcasters();
+        })
+        .catch(err => showNotification(err.message, 'error'));
+      });
+    }
+
+    const cancelBtn = document.getElementById('btn-cancel-broadcaster');
+    if (cancelBtn) {
+      cancelBtn.addEventListener('click', () => {
+        resetBroadcasterForm();
+      });
+    }
+
+    // 3. Start DJ takeover connection polling loop
+    pollLiveDJStatus();
+    setInterval(pollLiveDJStatus, 5000);
+  });
+
+  async function loadRemoteBroadcasters() {
+    if (!currentUser || currentUser.role !== 'ADMIN') {
+      const card = document.getElementById('settings-broadcasters-card');
+      if (card) card.style.display = 'none';
+      return;
+    }
+
+    const tbody = document.getElementById('settings-broadcasters-list');
+    if (!tbody) return;
+
+    tbody.innerHTML = `<tr><td colspan="5" style="text-align: center; color: var(--text-muted); padding: 12px 0;">Loading remote broadcasters...</td></tr>`;
+
+    apiFetch('/broadcasters')
+      .then(list => {
+        tbody.innerHTML = '';
+        if (!list || list.length === 0) {
+          tbody.innerHTML = `<tr><td colspan="5" style="text-align: center; color: var(--text-muted); padding: 12px 0;">No remote relays configured.</td></tr>`;
+          return;
+        }
+
+        list.forEach(b => {
+          const tr = document.createElement('tr');
+          const destStr = `${b.host}:${b.port}${b.mount || ''}`;
+          const formatStr = `${b.format} @ ${b.bitrate}k`;
+          const statusText = b.isActive ? 'Active' : 'Disabled';
+          const statusColor = b.isActive ? '#00ff66' : '#ff3e3e';
+          const statusBg = b.isActive ? 'rgba(0, 255, 102, 0.08)' : 'rgba(255, 62, 62, 0.08)';
+          const statusBorder = b.isActive ? 'rgba(0, 255, 102, 0.2)' : 'rgba(255, 62, 62, 0.2)';
+
+          tr.innerHTML = `
+            <td style="font-weight: 600;">${b.name}</td>
+            <td style="font-family: monospace; font-size: 11px;">${destStr}</td>
+            <td style="font-size: 12px; color: var(--text-muted);">${formatStr}</td>
+            <td style="text-align: center;">
+              <span style="background: ${statusBg}; border: 1px solid ${statusBorder}; color: ${statusColor}; padding: 2px 6px; border-radius: 4px; font-size: 11px;">
+                ${statusText}
+              </span>
+            </td>
+            <td style="text-align: right; padding-right: 14px;">
+              <button class="queue-action-btn btn-edit-broadcaster" style="padding: 4px 8px; font-size: 11px; margin-right: 5px;">Edit</button>
+              <button class="queue-action-btn queue-action-danger btn-delete-broadcaster" style="padding: 4px 8px; font-size: 11px;">Delete</button>
+            </td>
+          `;
+
+          tr.querySelector('.btn-edit-broadcaster').addEventListener('click', () => editBroadcaster(b));
+          tr.querySelector('.btn-delete-broadcaster').addEventListener('click', () => deleteBroadcaster(b.id, b.name));
+
+          tbody.appendChild(tr);
+        });
+      })
+      .catch(err => {
+        tbody.innerHTML = `<tr><td colspan="5" style="text-align: center; color: #ff3e3e; padding: 12px 0;">Failed to load: ${err.message}</td></tr>`;
+      });
+  }
+
+  function editBroadcaster(b) {
+    editingBroadcasterId = b.id;
+    document.getElementById('broadcaster-id').value = b.id;
+    document.getElementById('broadcaster-name').value = b.name;
+    document.getElementById('broadcaster-host').value = b.host;
+    document.getElementById('broadcaster-port').value = b.port;
+    document.getElementById('broadcaster-type').value = b.type;
+    document.getElementById('broadcaster-mount').value = b.mount || '';
+    document.getElementById('broadcaster-username').value = b.username || '';
+    document.getElementById('broadcaster-password').value = b.password;
+    document.getElementById('broadcaster-format').value = b.format;
+    document.getElementById('broadcaster-bitrate').value = b.bitrate;
+    document.getElementById('broadcaster-active').checked = b.isActive;
+
+    document.getElementById('broadcaster-form-title').textContent = '✏️ Edit Remote Relay';
+    document.getElementById('btn-submit-broadcaster').textContent = '💾 Save Changes';
+    document.getElementById('btn-cancel-broadcaster').style.display = 'inline-block';
+  }
+
+  function deleteBroadcaster(id, name) {
+    showConfirm('Delete Broadcaster Relay', `Are you sure you want to permanently delete the relay "${name}"?`, () => {
+      apiFetch(`/broadcasters/${id}`, { method: 'DELETE' })
+        .then(() => {
+          showNotification('Remote relay deleted successfully', 'warning');
+          if (editingBroadcasterId === id) resetBroadcasterForm();
+          loadRemoteBroadcasters();
+        })
+        .catch(err => showNotification(err.message, 'error'));
+    });
+  }
+
+  function resetBroadcasterForm() {
+    editingBroadcasterId = null;
+    document.getElementById('settings-broadcaster-form').reset();
+    document.getElementById('broadcaster-id').value = '';
+    document.getElementById('broadcaster-form-title').textContent = 'Create Remote Relay Destination';
+    document.getElementById('btn-submit-broadcaster').textContent = '＋ Add Remote Relay';
+    document.getElementById('btn-cancel-broadcaster').style.display = 'none';
+  }
+
+  // Polls the now-playing API to get active live status details
+  async function pollLiveDJStatus() {
+    try {
+      const res = await fetch('/api/public/now-playing');
+      if (!res.ok) return;
+      const data = await res.json();
+      const isDJConnected = Boolean(data.live_dj_active);
+
+      const dot = document.getElementById('settings-dj-status-dot');
+      const text = document.getElementById('settings-dj-status-text');
+
+      if (dot && text) {
+        if (isDJConnected) {
+          dot.style.background = '#00f0ff';
+          dot.style.boxShadow = '0 0 8px #00f0ff';
+          text.textContent = 'ONLINE';
+          text.style.color = '#00f0ff';
+        } else {
+          dot.style.background = '#888888';
+          dot.style.boxShadow = 'none';
+          text.textContent = 'OFFLINE';
+          text.style.color = 'var(--text-muted)';
+        }
+      }
+    } catch (e) {
+      console.warn('Failed to poll DJ status:', e);
+    }
+  }
+
+  window.loadRemoteBroadcasters = loadRemoteBroadcasters;
+})();
+
+

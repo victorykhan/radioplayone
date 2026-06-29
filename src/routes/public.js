@@ -13,6 +13,7 @@ router.get('/now-playing', (req, res) => {
   res.setHeader('Content-Type', 'application/json');
   const np = playoutState.getNowPlaying();
   np.isSourceConnected = playoutEngine.isSourceConnected;
+  np.live_dj_active = playoutEngine.isDJLive;
 
   // Mask AD/PROMO track types from the public streams
   if (np.now_playing && (np.now_playing.fileType === 'AD' || np.now_playing.fileType === 'PROMO')) {

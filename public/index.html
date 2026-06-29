@@ -1122,6 +1122,142 @@
           </div>
         </div>
 
+        <!-- LIVE DJ ACCESS CREDENTIALS -->
+        <div class="glass-card" style="max-width: 600px; margin-top: 30px;" id="settings-livedj-card">
+          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
+            <h3 style="font-weight: 600; margin: 0;">🎧 Live DJ Takeover (Direct Stream Access)</h3>
+            <div id="settings-dj-status-badge" style="display: flex; align-items: center; gap: 6px; background: rgba(255,255,255,0.05); padding: 4px 10px; border-radius: 20px; font-size: 11px; font-weight: 600;">
+              <span id="settings-dj-status-dot" style="display: inline-block; width: 8px; height: 8px; background: #888888; border-radius: 50%;"></span>
+              <span id="settings-dj-status-text" style="color: var(--text-muted);">OFFLINE</span>
+            </div>
+          </div>
+          <p style="color: var(--text-muted); font-size: 13px; margin-bottom: 20px; line-height: 1.5;">To go live, enter these credentials directly in your DJ software (e.g. VirtualDJ, Mixxx, BUTT) and connect. The playout engine will automatically pause and hand over the stream.</p>
+          <div style="background: rgba(0,0,0,0.2); padding: 20px; border-radius: 8px; border: 1px solid rgba(255,255,255,0.05); font-size: 13px; line-height: 1.6;">
+            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px;">
+              <div>
+                <span style="color: var(--text-muted); display: block; font-size: 11px; text-transform: uppercase;">Server Address</span>
+                <span style="font-weight: 600; color: var(--text-main); font-family: monospace;">play.vawam.ca</span>
+              </div>
+              <div>
+                <span style="color: var(--text-muted); display: block; font-size: 11px; text-transform: uppercase;">Server Port</span>
+                <span style="font-weight: 600; color: var(--text-main);">80 / 443 <span style="font-weight: normal; font-size: 11px; color: var(--text-muted);">(or 8000)</span></span>
+              </div>
+              <div>
+                <span style="color: var(--text-muted); display: block; font-size: 11px; text-transform: uppercase;">Mount Point</span>
+                <span style="font-weight: 600; color: var(--text-main); font-family: monospace;">/live</span>
+              </div>
+              <div>
+                <span style="color: var(--text-muted); display: block; font-size: 11px; text-transform: uppercase;">Username</span>
+                <span style="font-weight: 600; color: var(--text-main);">dj</span>
+              </div>
+              <div>
+                <span style="color: var(--text-muted); display: block; font-size: 11px; text-transform: uppercase;">Password</span>
+                <span style="font-weight: 600; color: var(--primary-color);">LiveDJ2026!</span>
+              </div>
+              <div>
+                <span style="color: var(--text-muted); display: block; font-size: 11px; text-transform: uppercase;">Format / Protocol</span>
+                <span style="font-weight: 600; color: var(--text-main);">Icecast 2 (MP3/AAC)</span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- REMOTE BROADCASTERS MANAGER -->
+        <div class="glass-card" style="max-width: 600px; margin-top: 30px;" id="settings-broadcasters-card">
+          <h3 style="font-weight: 600; margin-bottom: 8px;">📡 Remote Broadcasters & Relays</h3>
+          <p style="color: var(--text-muted); font-size: 13px; margin-bottom: 20px;">Automatically mirror/forward your playout mix to external Icecast or Shoutcast directory networks.</p>
+          
+          <!-- Table List of Broadcasters -->
+          <div style="margin-bottom: 24px; overflow-x: auto;">
+            <table class="library-table" style="font-size: 13px; min-width: 100%;">
+              <thead>
+                <tr>
+                  <th>Name</th>
+                  <th>Destination</th>
+                  <th>Format/Bitrate</th>
+                  <th style="text-align: center;">Status</th>
+                  <th style="text-align: right; padding-right: 14px;">Actions</th>
+                </tr>
+              </thead>
+              <tbody id="settings-broadcasters-list">
+                <tr><td colspan="5" style="text-align: center; color: var(--text-muted); padding: 12px 0;">Loading remote broadcasters...</td></tr>
+              </tbody>
+            </table>
+          </div>
+
+          <!-- Add Broadcaster Form -->
+          <div style="background: rgba(0,0,0,0.15); padding: 18px; border-radius: 8px; border: 1px solid rgba(255,255,255,0.04);">
+            <h4 id="broadcaster-form-title" style="font-weight: 600; font-size: 13px; margin-top: 0; margin-bottom: 12px; color: var(--primary-color);">Create Remote Relay Destination</h4>
+            <form id="settings-broadcaster-form">
+              <input type="hidden" id="broadcaster-id" value="">
+              <div class="form-group">
+                <label class="form-label">Relay Connection Name</label>
+                <input type="text" id="broadcaster-name" class="form-input" required placeholder="e.g. ZenoRadio Main Link">
+              </div>
+              <div style="display: grid; grid-template-columns: 2fr 1fr; gap: 16px;">
+                <div class="form-group">
+                  <label class="form-label">Server IP / Hostname</label>
+                  <input type="text" id="broadcaster-host" class="form-input" required placeholder="e.g. stream.zeno.fm">
+                </div>
+                <div class="form-group">
+                  <label class="form-label">Server Port</label>
+                  <input type="number" id="broadcaster-port" class="form-input" required placeholder="80">
+                </div>
+              </div>
+              <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px;">
+                <div class="form-group">
+                  <label class="form-label">Protocol Type</label>
+                  <select id="broadcaster-type" class="form-input" style="cursor: pointer; background: rgba(0,0,0,0.3); color:#fff;">
+                    <option value="ICECAST">Icecast 2</option>
+                    <option value="SHOUTCAST">Shoutcast</option>
+                  </select>
+                </div>
+                <div class="form-group">
+                  <label class="form-label">Mount Point / Stream ID</label>
+                  <input type="text" id="broadcaster-mount" class="form-input" placeholder="e.g. /radio (Icecast only)">
+                </div>
+              </div>
+              <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px;">
+                <div class="form-group">
+                  <label class="form-label">Username (Icecast source)</label>
+                  <input type="text" id="broadcaster-username" class="form-input" placeholder="e.g. source">
+                </div>
+                <div class="form-group">
+                  <label class="form-label">Source Password</label>
+                  <input type="password" id="broadcaster-password" class="form-input" required placeholder="••••••••">
+                </div>
+              </div>
+              <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px;">
+                <div class="form-group">
+                  <label class="form-label">Audio Format</label>
+                  <select id="broadcaster-format" class="form-input" style="cursor: pointer; background: rgba(0,0,0,0.3); color:#fff;">
+                    <option value="MP3">MP3</option>
+                    <option value="AAC">AAC (High Quality)</option>
+                  </select>
+                </div>
+                <div class="form-group">
+                  <label class="form-label">Audio Bitrate</label>
+                  <select id="broadcaster-bitrate" class="form-input" style="cursor: pointer; background: rgba(0,0,0,0.3); color:#fff;">
+                    <option value="64">64 kbps</option>
+                    <option value="128" selected>128 kbps (Standard)</option>
+                    <option value="192">192 kbps</option>
+                    <option value="256">256 kbps</option>
+                    <option value="320">320 kbps (High Quality)</option>
+                  </select>
+                </div>
+              </div>
+              <div class="form-group" style="display: flex; align-items: center; gap: 8px; margin-top: 10px;">
+                <input type="checkbox" id="broadcaster-active" checked style="width: auto; margin: 0; cursor: pointer;">
+                <label class="form-label" style="margin: 0; cursor: pointer;" for="broadcaster-active">Enable relay immediately</label>
+              </div>
+              <div style="display: flex; gap: 10px; margin-top: 10px;">
+                <button type="submit" id="btn-submit-broadcaster" class="form-input" style="background: var(--primary-color); color: #000; font-weight:600; cursor: pointer; border: none;">＋ Add Remote Relay</button>
+                <button type="button" id="btn-cancel-broadcaster" class="form-input" style="background: rgba(255,255,255,0.05); border-color: rgba(255,255,255,0.1); cursor: pointer; color: var(--text-main); display: none;">Cancel</button>
+              </div>
+            </form>
+          </div>
+        </div>
+
         <!-- USER MANAGEMENT & RBAC DIRECTORY -->
         <div class="glass-card" style="max-width: 600px; margin-top: 30px;" id="settings-user-mgmt-card">
           <h3 style="font-weight: 600; margin-bottom: 8px;">👤 User Management & Roles</h3>

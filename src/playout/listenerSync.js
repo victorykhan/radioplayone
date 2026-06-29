@@ -3,6 +3,8 @@ import crypto from 'crypto';
 import geoip from 'geoip-lite';
 import prisma from '../db.js';
 import logger from '../logger.js';
+import playoutEngine from './engine.js';
+
 
 let syncInterval = null;
 
@@ -68,9 +70,54 @@ function fetchIcecastClients() {
   });
 }
 
+// Fetch general server stats XML from Icecast Admin API
+function fetchIcecastStats() {
+  return new Promise((resolve, reject) => {
+    const host = process.env.ICECAST_HOST || '127.0.0.1';
+    const port = process.env.ICECAST_PORT || '8000';
+    const password = process.env.ICECAST_ADMIN_PASSWORD || 'RadioAdmin2024!';
+    const user = 'admin';
+
+    const authHeader = 'Basic ' + Buffer.from(user + ':' + password).toString('base64');
+    const url = `http://${host}:${port}/admin/stats.xml`;
+
+    http.get(url, {
+      headers: { 'Authorization': authHeader }
+    }, (res) => {
+      let data = '';
+      res.on('data', chunk => { data += chunk; });
+      res.on('end', () => {
+        if (res.statusCode !== 200) {
+          reject(new Error(`HTTP status code ${res.statusCode}`));
+        } else {
+          resolve(data);
+        }
+      });
+    }).on('error', (err) => {
+      reject(err);
+    });
+  });
+}
+
+
 // Sync execution
 async function syncListeners() {
   try {
+    // 0. Poll stats to check if a live DJ is connected to /live mount
+    try {
+      const statsXml = await fetchIcecastStats();
+      const isLiveConnected = statsXml.includes('<source mount="/live">') || statsXml.includes('mount="/live"');
+      if (isLiveConnected !== playoutEngine.isDJLive) {
+        playoutEngine.isDJLive = isLiveConnected;
+        logger.info(`Listener Sync: Live DJ status changed. Connected: ${isLiveConnected}`);
+      }
+    } catch (statsErr) {
+      if (playoutEngine.isDJLive) {
+        playoutEngine.isDJLive = false;
+        logger.warn(`Listener Sync: Failed to poll Icecast stats, setting DJ status to offline: ${statsErr.message}`);
+      }
+    }
+
     const xmlData = await fetchIcecastClients();
     const activeIcecastListeners = parseIcecastXml(xmlData);
     const activeIds = activeIcecastListeners.map(l => String(l.id));

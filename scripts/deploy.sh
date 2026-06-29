@@ -104,6 +104,16 @@ server {
         proxy_buffering off;
         proxy_read_timeout 86400s;
     }
+
+    # Proxy the Live DJ stream source endpoint for external connections
+    location /live {
+        proxy_pass http://localhost:8000/live;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_buffering off;
+        proxy_read_timeout 86400s;
+    }
 }
 EOF
 

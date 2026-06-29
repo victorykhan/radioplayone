@@ -24,6 +24,8 @@ import playoutRoutes from './routes/playout.js';
 import imagingRoutes from './routes/imaging.js';
 import campaignRoutes from './routes/campaigns.js';
 import revenueRoutes from './routes/revenue.js';
+import broadcasterRoutes from './routes/broadcasters.js';
+
 
 // Playout Engine & Background Sync Imports
 import playoutEngine from './playout/engine.js';
@@ -82,6 +84,8 @@ app.use('/api/playout', playoutRoutes);
 app.use('/api/imaging', imagingRoutes);
 app.use('/api/campaigns', campaignRoutes);
 app.use('/api/campaigns/revenue', revenueRoutes);
+app.use('/api/broadcasters', broadcasterRoutes);
+
 
 // Intercept root and SPA fallbacks to inject dynamic database settings (SEO, OG, favicon, theme)
 const serveDynamicIndex = async (req, res) => {
