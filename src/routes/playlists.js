@@ -140,7 +140,7 @@ router.post('/:id/tracks', authenticateJWT, requireRole(['ADMIN', 'PRODUCER']), 
 
     for (const trackId of trackIds) {
       const track = await prisma.track.findUnique({ where: { id: parseInt(trackId) } });
-      if (!track || track.isDeleted) continue;
+      if (!track || track.isDeleted || track.fileType !== 'SONG') continue;
 
       const playlistTrack = await prisma.playlistTrack.create({
         data: {

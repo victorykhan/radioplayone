@@ -355,9 +355,9 @@ class PlayoutEngine {
         }
       }
 
-      // Final fallback: any track in db
+      // Final fallback: any song in db
       const randomTrack = await prisma.track.findFirst({
-        where: { isDeleted: false }
+        where: { isDeleted: false, fileType: 'SONG' }
       });
       if (randomTrack) {
         randomTrack.playoutSource = 'Random Library Fallback';

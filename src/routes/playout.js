@@ -103,6 +103,9 @@ router.post('/load-track', authenticateJWT, requireRole(['ADMIN', 'PRODUCER', 'D
     if (!track || track.isDeleted) {
       return res.status(404).json({ error: 'Track not found or deleted' });
     }
+    if (track.fileType !== 'SONG') {
+      return res.status(400).json({ error: 'Only tracks of type SONG can be added to the playout queue.' });
+    }
 
     // Append track to playout manual queue
     playoutState.addToQueue(track);
@@ -291,6 +294,10 @@ router.post('/instant-swap', authenticateJWT, requireRole(['ADMIN', 'PRODUCER', 
   }
 
   try {
+    const track = await prisma.track.findUnique({ where: { id: parseInt(trackId) } });
+    if (!track || track.isDeleted || track.fileType !== 'SONG') {
+      return res.status(400).json({ error: 'Only tracks of type SONG can be swapped.' });
+    }
     const result = await playoutEngine.instantSwapTrack(trackId);
     res.json(result);
   } catch (error) {

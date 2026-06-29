@@ -100,6 +100,7 @@
       <ul class="nav-menu">
         <li><a class="nav-item active" data-view="studio">📻 Studio Desk</a></li>
         <li><a class="nav-item" data-view="library">📁 Music Library</a></li>
+        <li><a class="nav-item" data-view="imaging-library">🎙️ Imaging Library</a></li>
         <li><a class="nav-item" data-view="playlists">📋 Playlists</a></li>
         <li><a class="nav-item" data-view="analytics">📈 Analytics</a></li>
         <li><a class="nav-item" data-view="settings">⚙️ Settings</a></li>
@@ -327,13 +328,8 @@
           <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; gap: 12px;">
             <h3 id="library-sub-title" style="font-weight: 600;">All Music Tracks</h3>
             <div style="display: flex; gap: 12px; align-items: center;">
-              <select id="library-filter-type" class="form-input" style="width: 160px; background: rgba(255,255,255,0.05); border-color: rgba(255,255,255,0.1); color: var(--text-main); cursor: pointer;">
-                <option value="">All Formats/Types</option>
-                <option value="SONG">🎵 Songs</option>
-                <option value="AD">💰 Ads / Commercials</option>
-                <option value="JINGLE">🎤 Jingles / Sweep</option>
-                <option value="STATION_ID">📻 Station IDs</option>
-                <option value="FILLER">Filler Tracks</option>
+              <select id="library-filter-type" class="form-input" style="display: none;">
+                <option value="SONG" selected>Songs</option>
               </select>
               <input type="text" id="library-search" class="form-input" placeholder="Search title, artist, album..." style="width: 230px;">
             </div>
@@ -354,6 +350,53 @@
                 </tr>
               </thead>
               <tbody id="library-table-body">
+                <!-- Populated by JS -->
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </section>
+
+      <!-- SECTION: IMAGING & SOUNDBOARD LIBRARY -->
+      <section id="section-imaging-library" class="view-section">
+        <div class="section-header" style="display: flex; justify-content: space-between; align-items: center;">
+          <div>
+            <h1 class="section-title">🎙️ Imaging & Soundboard Library</h1>
+            <p style="color: var(--text-muted);">Manage sweeps, station IDs, drops, jingles, ads, and promos</p>
+          </div>
+        </div>
+
+        <div class="glass-card">
+          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; gap: 12px;">
+            <h3 style="font-weight: 600;">All Imaging Elements</h3>
+            <div style="display: flex; gap: 12px; align-items: center;">
+              <select id="imaging-lib-filter-type" class="form-input" style="width: 200px; background: rgba(255,255,255,0.05); border-color: rgba(255,255,255,0.1); color: var(--text-main); cursor: pointer;">
+                <option value="">All Categories (No Songs)</option>
+                <option value="JINGLE">🎤 Jingles</option>
+                <option value="SWEEPER">⚡ Sweepers</option>
+                <option value="STATION_ID">📻 Station IDs</option>
+                <option value="DJ_DROP">🎙️ DJ Drops</option>
+                <option value="AD">💰 Ads / Commercials</option>
+                <option value="PROMO">📣 Promos</option>
+              </select>
+              <input type="text" id="imaging-lib-search" class="form-input" placeholder="Search elements..." style="width: 230px;">
+            </div>
+          </div>
+          <div class="table-container">
+            <table class="library-table">
+              <thead>
+                <tr>
+                  <th style="width: 40px;"></th>
+                  <th style="width: 50px; text-align: center;">Cover</th>
+                  <th>Title</th>
+                  <th>Artist</th>
+                  <th>Duration</th>
+                  <th>Type</th>
+                  <th>Added</th>
+                  <th style="width: 120px;">Actions</th>
+                </tr>
+              </thead>
+              <tbody id="imaging-library-table-body">
                 <!-- Populated by JS -->
               </tbody>
             </table>

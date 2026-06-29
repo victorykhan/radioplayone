@@ -363,6 +363,9 @@ function switchView(viewName) {
     loadLibraryFolders();
     loadLibraryTracks();
   }
+  if (viewName === 'imaging-library') {
+    loadImagingLibraryTracks();
+  }
   
   if (viewName === 'system') {
     startSystemMonitoring();
@@ -992,6 +995,15 @@ document.getElementById('library-filter-type').addEventListener('change', () => 
   loadLibraryTracks();
 });
 
+// Imaging Library Search & Filter inputs
+document.getElementById('imaging-lib-search').addEventListener('input', () => {
+  loadImagingLibraryTracks();
+});
+
+document.getElementById('imaging-lib-filter-type').addEventListener('change', () => {
+  loadImagingLibraryTracks();
+});
+
 // Delete Track
 function deleteTrack(id) {
   showConfirm(
@@ -1002,11 +1014,121 @@ function deleteTrack(id) {
         .then(() => {
           loadLibraryTracks();
           loadLibraryFolders();
+          if (typeof loadImagingLibraryTracks === 'function') loadImagingLibraryTracks();
           showNotification('Track deleted successfully.', 'success');
         })
         .catch(err => showNotification(err.message, 'error'));
     }
   );
+}
+
+// === IMAGING LIBRARY MODULE ===
+let imagingTracksList = [];
+
+function loadImagingLibraryTracks() {
+  let endpoint = `/tracks?sortField=title&sortOrder=asc&limit=1000`;
+  
+  const searchInput = document.getElementById('imaging-lib-search').value;
+  if (searchInput) {
+    endpoint += `&search=${encodeURIComponent(searchInput)}`;
+  }
+
+  const typeFilter = document.getElementById('imaging-lib-filter-type').value;
+  if (typeFilter) {
+    endpoint += `&fileType=${typeFilter}`;
+  } else {
+    endpoint += `&fileType=ALL`;
+  }
+
+  apiFetch(endpoint)
+    .then(data => {
+      const tracks = data.tracks || [];
+      if (typeFilter) {
+        imagingTracksList = tracks;
+      } else {
+        imagingTracksList = tracks.filter(t => t.fileType !== 'SONG');
+      }
+      renderImagingLibraryTracks();
+    })
+    .catch(err => console.error('Failed loading imaging tracks:', err));
+}
+
+function renderImagingLibraryTracks() {
+  const tbody = document.getElementById('imaging-library-table-body');
+  if (!tbody) return;
+  tbody.innerHTML = '';
+
+  if (imagingTracksList.length === 0) {
+    tbody.innerHTML = `<tr><td colspan="8" style="text-align: center; color: var(--text-muted); padding: 40px 0;">No imaging elements found.</td></tr>`;
+    return;
+  }
+
+  imagingTracksList.forEach(track => {
+    const tr = document.createElement('tr');
+    
+    const minutes = Math.floor(track.duration / 60);
+    const seconds = Math.floor(track.duration % 60);
+    const durationStr = `${minutes}:${String(seconds).padStart(2, '0')}`;
+    const dateStr = new Date(track.createdAt).toLocaleDateString();
+
+    let typeLabel = track.fileType;
+    if (track.fileType === 'AD') typeLabel = 'Ad';
+    if (track.fileType === 'JINGLE') typeLabel = 'Jingle';
+    if (track.fileType === 'SWEEPER') typeLabel = 'Sweeper';
+    if (track.fileType === 'STATION_ID') typeLabel = 'Station ID';
+    if (track.fileType === 'DJ_DROP') typeLabel = 'DJ Drop';
+    if (track.fileType === 'PROMO') typeLabel = 'Promo';
+
+    tr.innerHTML = `
+      <td class="btn-play-preview" data-id="${track.id}" style="cursor: pointer; text-align: center; font-size: 16px;">▶️</td>
+      <td style="text-align: center;">
+        <img src="${track.coverArtUrl || '/covers/default-vinyl.svg'}" style="width: 32px; height: 32px; border-radius: 4px; object-fit: cover; border: 1px solid rgba(255,255,255,0.08);">
+      </td>
+      <td style="font-weight: 600;">${track.title}</td>
+      <td>${track.artist || 'Unknown Artist'}</td>
+      <td>${durationStr}</td>
+      <td><span style="background: rgba(0, 240, 255, 0.08); border: 1px solid rgba(0, 240, 255, 0.2); color: #00f0ff; padding: 4px 8px; border-radius: 4px; font-size: 11px;">${typeLabel}</span></td>
+      <td>${dateStr}</td>
+      <td>
+        <button class="control-btn btn-edit-track" data-id="${track.id}" style="font-size: 14px; margin-right: 10px;">✏️</button>
+        <button class="control-btn btn-delete-track" data-id="${track.id}" style="font-size: 14px; color: #ff5252;">🗑️</button>
+      </td>
+    `;
+
+    tr.style.cursor = 'pointer';
+    tr.addEventListener('click', (e) => {
+      if (e.target.closest('.control-btn') || e.target.closest('.btn-play-preview')) return;
+      tbody.querySelectorAll('tr').forEach(r => r.classList.remove('selected-row'));
+      tr.classList.add('selected-row');
+      openEditDrawer(track);
+    });
+
+    tr.querySelector('.btn-play-preview').addEventListener('click', (e) => {
+      e.stopPropagation();
+      toggleTrackPreview(track.id, e.currentTarget);
+    });
+
+    tr.querySelector('.btn-edit-track').addEventListener('click', (e) => {
+      e.stopPropagation();
+      tbody.querySelectorAll('tr').forEach(r => r.classList.remove('selected-row'));
+      tr.classList.add('selected-row');
+      openEditDrawer(track);
+    });
+
+    tr.querySelector('.btn-delete-track').addEventListener('click', (e) => {
+      e.stopPropagation();
+      showConfirm('Delete Imaging Track', `Are you sure you want to permanently delete "${track.title}"?`, () => {
+        apiFetch(`/tracks/${track.id}`, { method: 'DELETE' })
+          .then(() => {
+            showNotification('Track deleted successfully', 'warning');
+            loadImagingLibraryTracks();
+          })
+          .catch(err => showNotification(err.message, 'error'));
+      });
+    });
+
+    tbody.appendChild(tr);
+  });
 }
 
 // Global track preview audio player
@@ -1188,6 +1310,7 @@ function setupTrackDrawer() {
     .then(() => {
       drawer.classList.remove('open');
       loadLibraryTracks();
+      if (typeof loadImagingLibraryTracks === 'function') loadImagingLibraryTracks();
       showNotification('Track overrides saved successfully!', 'success');
     })
     .catch(err => showNotification(err.message, 'error'));
@@ -4029,7 +4152,7 @@ function populateImagingTrackSelect() {
   const select = document.getElementById('imaging-track-select');
   if (!select) return;
   
-  apiFetch('/tracks?limit=1000')
+  apiFetch('/tracks?limit=1000&fileType=ALL')
     .then(res => {
       const tracks = Array.isArray(res) ? res : (res.tracks || []);
       select.innerHTML = '<option value="">-- Choose Track --</option>';

@@ -392,7 +392,11 @@ router.get('/', authenticateJWT, async (req, res) => {
   }
 
   if (fileType) {
-    where.fileType = fileType;
+    if (fileType !== 'ALL') {
+      where.fileType = fileType;
+    }
+  } else {
+    where.fileType = 'SONG';
   }
 
   try {
