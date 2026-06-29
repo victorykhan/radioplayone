@@ -105,6 +105,7 @@
         <li><a class="nav-item" data-view="imaging-library">🎙️ Imaging Library</a></li>
         <li><a class="nav-item" data-view="playlists">📋 Playlists</a></li>
         <li><a class="nav-item" data-view="campaigns">💰 Ad Campaigns</a></li>
+        <li><a class="nav-item" data-view="ads-revenue">📊 Ads Revenue</a></li>
         <li><a class="nav-item" data-view="analytics">📈 Analytics</a></li>
         <li><a class="nav-item" data-view="settings">⚙️ Settings</a></li>
         <li><a class="nav-item" data-view="system">💻 System Status</a></li>
@@ -705,6 +706,114 @@
                 </table>
               </div>
             </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- SECTION: ADS REVENUE -->
+      <section id="section-ads-revenue" class="view-section">
+        <div class="section-header" style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 24px;">
+          <div>
+            <h1 class="section-title">📊 Ad Campaigns Revenue & Yield Analytics</h1>
+            <p style="color: var(--text-muted);">Real-time billing yields, impressions performance, and CPC stats</p>
+          </div>
+        </div>
+
+        <!-- Metric summaries -->
+        <div class="studio-grid" style="grid-template-columns: repeat(4, 1fr); gap: 20px; margin-bottom: 30px;">
+          <div class="glass-card metric-card">
+            <div style="font-size: 12px; font-weight: 600; color: var(--text-muted); text-transform: uppercase;">Total Ads Revenue</div>
+            <div id="revenue-total-val" style="font-size: 36px; font-weight: 700; color: #00f0ff; margin-top: 10px;">$0.00</div>
+          </div>
+          <div class="glass-card metric-card">
+            <div style="font-size: 12px; font-weight: 600; color: var(--text-muted); text-transform: uppercase;">Total Play Impressions</div>
+            <div id="revenue-plays-val" style="font-size: 36px; font-weight: 700; color: #7000ff; margin-top: 10px;">0</div>
+          </div>
+          <div class="glass-card metric-card">
+            <div style="font-size: 12px; font-weight: 600; color: var(--text-muted); text-transform: uppercase;">Average CPC Rate</div>
+            <div id="revenue-cpc-val" style="font-size: 36px; font-weight: 700; color: #ffaa00; margin-top: 10px;">$0.00</div>
+          </div>
+          <div class="glass-card metric-card">
+            <div style="font-size: 12px; font-weight: 600; color: var(--text-muted); text-transform: uppercase;">Active Commercials</div>
+            <div id="revenue-active-val" style="font-size: 36px; font-weight: 700; color: #00ff66; margin-top: 10px;">0</div>
+          </div>
+        </div>
+
+        <!-- Filter Row -->
+        <div class="glass-card" style="padding: 20px; margin-bottom: 30px; display: flex; flex-wrap: wrap; gap: 20px; align-items: center; justify-content: space-between;">
+          <div style="display: flex; gap: 16px; align-items: center;">
+            <div style="display: flex; flex-direction: column; gap: 4px;">
+              <label class="form-label" style="font-size: 11px;">Reporting Timeframe</label>
+              <select id="revenue-filter-range" class="form-input" style="width: 160px; background: rgba(255,255,255,0.05); border-color: rgba(255,255,255,0.1); color: var(--text-main); cursor: pointer;">
+                <option value="daily">📅 Daily (Last 14 Days)</option>
+                <option value="weekly" selected>📅 Weekly (Last 8 Weeks)</option>
+                <option value="monthly">📅 Monthly (Last 6 Months)</option>
+                <option value="annual">📅 Annual (Last 3 Years)</option>
+              </select>
+            </div>
+            
+            <div style="display: flex; flex-direction: column; gap: 4px;">
+              <label class="form-label" style="font-size: 11px;">Sort By</label>
+              <select id="revenue-filter-sort" class="form-input" style="width: 160px; background: rgba(255,255,255,0.05); border-color: rgba(255,255,255,0.1); color: var(--text-main); cursor: pointer;">
+                <option value="revenue" selected>Sort by Revenue</option>
+                <option value="plays">Sort by Plays</option>
+                <option value="name">Sort by Name</option>
+              </select>
+            </div>
+          </div>
+
+          <div style="display: flex; gap: 16px; align-items: center;">
+            <div style="display: flex; flex-direction: column; gap: 4px;">
+              <label class="form-label" style="font-size: 11px;">Start Date</label>
+              <input type="date" id="revenue-start-date" class="form-input" style="width: 140px; background: rgba(255,255,255,0.05); border-color: rgba(255,255,255,0.1); color: var(--text-main);">
+            </div>
+            <div style="display: flex; flex-direction: column; gap: 4px;">
+              <label class="form-label" style="font-size: 11px;">End Date</label>
+              <input type="date" id="revenue-end-date" class="form-input" style="width: 140px; background: rgba(255,255,255,0.05); border-color: rgba(255,255,255,0.1); color: var(--text-main);">
+            </div>
+            <button id="btn-apply-revenue-filters" class="form-input" style="width: auto; height: 38px; margin-top: 19px; background: var(--primary-color); color: #000; border: none; font-weight: 600; cursor: pointer; padding: 0 20px;">Apply</button>
+            <button id="btn-clear-revenue-filters" class="form-input" style="width: auto; height: 38px; margin-top: 19px; background: rgba(255,255,255,0.05); border-color: rgba(255,255,255,0.1); color: var(--text-main); cursor: pointer; padding: 0 15px;">Reset</button>
+          </div>
+        </div>
+
+        <!-- Leaderboard and Chart Row -->
+        <div style="display: grid; grid-template-columns: 1fr 2fr; gap: 24px; margin-bottom: 30px;">
+          <!-- Top 3 Ads Leaderboard -->
+          <div class="glass-card" style="padding: 24px; display: flex; flex-direction: column;">
+            <h3 style="font-weight: 600; margin-bottom: 20px;">🏆 Top 3 Earning Ads</h3>
+            <div id="revenue-top-ads-list" style="display: flex; flex-direction: column; gap: 16px; flex-grow: 1; justify-content: center;">
+              <!-- Populated dynamically -->
+            </div>
+          </div>
+
+          <!-- Revenue Performance Chart -->
+          <div class="glass-card" style="padding: 24px;">
+            <h3 style="font-weight: 600; margin-bottom: 20px;">📈 Revenue Performance</h3>
+            <div style="position: relative; height: 260px; width: 100%;">
+              <canvas id="chart-revenue-performance"></canvas>
+            </div>
+          </div>
+        </div>
+
+        <!-- Campaign Revenue Details Grid -->
+        <div class="glass-card" style="padding: 24px;">
+          <h3 style="font-weight: 600; margin-bottom: 20px;">📋 Campaign Earnings Breakdown</h3>
+          <div class="table-container">
+            <table class="library-table">
+              <thead>
+                <tr>
+                  <th>Campaign Name</th>
+                  <th>Client Name</th>
+                  <th>Industry</th>
+                  <th style="text-align: center;">Total Plays</th>
+                  <th style="text-align: center;">CPC Rate</th>
+                  <th style="text-align: right; padding-right: 24px;">Earned Revenue</th>
+                </tr>
+              </thead>
+              <tbody id="revenue-table-body">
+                <!-- Populated dynamically -->
+              </tbody>
+            </table>
           </div>
         </div>
       </section>

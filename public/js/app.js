@@ -125,6 +125,7 @@ document.addEventListener('DOMContentLoaded', () => {
   setupLiveMonitor();
   setupAnalyticsControls();
   setupCampaignsEvents();
+  setupRevenueEvents();
 
   // Poll now playing every 4 seconds
   setInterval(pollNowPlaying, 4000);
@@ -369,6 +370,9 @@ function switchView(viewName) {
   }
   if (viewName === 'campaigns') {
     loadCampaigns();
+  }
+  if (viewName === 'ads-revenue') {
+    loadAdsRevenue();
   }
   
   if (viewName === 'system') {
@@ -2089,6 +2093,172 @@ function setupAnalyticsControls() {
     btnNext.addEventListener('click', () => {
       analyticsPage++;
       loadAnalytics();
+    });
+  }
+}
+
+// === ADS REVENUE MODULE ===
+let revenueChart = null;
+let revenueFilterRange = 'weekly';
+let revenueFilterSort = 'revenue';
+let revenueStartDate = '';
+let revenueEndDate = '';
+
+function loadAdsRevenue() {
+  let endpoint = `/campaigns/revenue?range=${revenueFilterRange}&sortField=${revenueFilterSort}&sortOrder=desc`;
+  if (revenueStartDate && revenueEndDate) {
+    endpoint += `&start=${revenueStartDate}&end=${revenueEndDate}`;
+  }
+
+  apiFetch(endpoint)
+    .then(data => {
+      // 1. Populate Metrics
+      document.getElementById('revenue-total-val').textContent = `$${data.summary.totalRevenue.toFixed(2)}`;
+      document.getElementById('revenue-plays-val').textContent = data.summary.totalPlays.toLocaleString();
+      document.getElementById('revenue-cpc-val').textContent = `$${data.summary.avgCpc.toFixed(2)}`;
+      document.getElementById('revenue-active-val').textContent = data.summary.activeCampaigns;
+
+      // 2. Populate Leaderboard (Top 3 Earning Ads)
+      const listContainer = document.getElementById('revenue-top-ads-list');
+      listContainer.innerHTML = '';
+      if (!data.topAds || data.topAds.length === 0) {
+        listContainer.innerHTML = `<div style="text-align: center; color: var(--text-muted); font-size: 13px; padding: 20px 0;">No ad play data recorded yet.</div>`;
+      } else {
+        const badges = [
+          { icon: '🥇', label: '1st Place', color: 'background: linear-gradient(135deg, #ffd700, #b8860b); color: #000;' },
+          { icon: '🥈', label: '2nd Place', color: 'background: linear-gradient(135deg, #c0c0c0, #708090); color: #000;' },
+          { icon: '🥉', label: '3rd Place', color: 'background: linear-gradient(135deg, #cd7f32, #8b4513); color: #000;' }
+        ];
+        data.topAds.forEach((ad, index) => {
+          const badge = badges[index] || { icon: '🏅', label: `${index + 1}th`, color: 'background: rgba(255,255,255,0.1);' };
+          const percent = data.summary.totalRevenue > 0 ? (ad.revenue / data.summary.totalRevenue) * 100 : 0;
+          
+          const adRow = document.createElement('div');
+          adRow.style = 'background: rgba(255,255,255,0.02); border: 1px solid rgba(255,255,255,0.05); padding: 12px; border-radius: 8px; display: flex; align-items: center; justify-content: space-between; gap: 12px;';
+          adRow.innerHTML = `
+            <div style="display: flex; align-items: center; gap: 12px;">
+              <span style="font-size: 20px; width: 32px; height: 32px; display: flex; align-items: center; justify-content: center; border-radius: 50%; ${badge.color}">${badge.icon}</span>
+              <div>
+                <div style="font-weight: 600; font-size: 13px; color: var(--text-main);">${ad.title}</div>
+                <div style="font-size: 11px; color: var(--text-muted);">${ad.campaignName}</div>
+              </div>
+            </div>
+            <div style="text-align: right;">
+              <div style="font-weight: 700; color: #00f0ff; font-size: 14px;">$${ad.revenue.toFixed(2)}</div>
+              <div style="font-size: 11px; color: var(--text-muted);">${ad.plays} plays (${percent.toFixed(1)}%)</div>
+            </div>
+          `;
+          listContainer.appendChild(adRow);
+        });
+      }
+
+      // 3. Render ChartJS Revenue Performance Chart
+      const ctx = document.getElementById('chart-revenue-performance').getContext('2d');
+      if (revenueChart) revenueChart.destroy();
+
+      const labels = data.chartData.map(d => d.interval);
+      const revenues = data.chartData.map(d => d.revenue);
+
+      const primaryColor = getComputedStyle(document.documentElement).getPropertyValue('--primary-color').trim() || '#00f0ff';
+
+      revenueChart = new Chart(ctx, {
+        type: 'bar',
+        data: {
+          labels: labels.length > 0 ? labels : ['No Data'],
+          datasets: [{
+            label: 'Earned Revenue ($)',
+            data: revenues.length > 0 ? revenues : [0],
+            borderColor: primaryColor,
+            backgroundColor: primaryColor + 'cc',
+            borderWidth: 0,
+            borderRadius: 4
+          }]
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          scales: {
+            y: { 
+              beginAtZero: true, 
+              grid: { color: 'rgba(255,255,255,0.05)' },
+              ticks: {
+                callback: function(value) {
+                  return '$' + value;
+                }
+              }
+            },
+            x: { grid: { display: false } }
+          },
+          plugins: {
+            legend: { display: false }
+          }
+        }
+      });
+
+      // 4. Populate Table Grid
+      const tbody = document.getElementById('revenue-table-body');
+      tbody.innerHTML = '';
+      if (!data.campaigns || data.campaigns.length === 0) {
+        tbody.innerHTML = `<tr><td colspan="6" style="text-align: center; color: var(--text-muted); padding: 40px 0;">No campaign records found.</td></tr>`;
+      } else {
+        data.campaigns.forEach(c => {
+          const tr = document.createElement('tr');
+          tr.innerHTML = `
+            <td style="font-weight: 600; color: var(--text-main);">${c.name}</td>
+            <td>${c.clientName}</td>
+            <td><span style="background: rgba(255,255,255,0.05); padding: 3px 8px; border-radius: 4px; font-size: 11px;">${c.clientIndustry}</span></td>
+            <td style="text-align: center; font-weight: 600;">${c.plays.toLocaleString()}</td>
+            <td style="text-align: center; color: var(--text-muted); font-size: 13px;">$${c.cpc.toFixed(2)}</td>
+            <td style="text-align: right; padding-right: 24px; font-weight: 700; color: #00ff66;">$${c.revenue.toFixed(2)}</td>
+          `;
+          tbody.appendChild(tr);
+        });
+      }
+    })
+    .catch(err => showNotification('Failed loading revenue report: ' + err.message, 'error'));
+}
+
+function setupRevenueEvents() {
+  const rangeSelect = document.getElementById('revenue-filter-range');
+  const sortSelect = document.getElementById('revenue-filter-sort');
+  const startInput = document.getElementById('revenue-start-date');
+  const endInput = document.getElementById('revenue-end-date');
+  const applyBtn = document.getElementById('btn-apply-revenue-filters');
+  const resetBtn = document.getElementById('btn-clear-revenue-filters');
+
+  if (rangeSelect) {
+    rangeSelect.addEventListener('change', () => {
+      revenueFilterRange = rangeSelect.value;
+      loadAdsRevenue();
+    });
+  }
+
+  if (sortSelect) {
+    sortSelect.addEventListener('change', () => {
+      revenueFilterSort = sortSelect.value;
+      loadAdsRevenue();
+    });
+  }
+
+  if (applyBtn) {
+    applyBtn.addEventListener('click', () => {
+      if (startInput.value && endInput.value) {
+        revenueStartDate = startInput.value;
+        revenueEndDate = endInput.value;
+        loadAdsRevenue();
+      } else {
+        showNotification('Please select both start and end dates', 'info');
+      }
+    });
+  }
+
+  if (resetBtn) {
+    resetBtn.addEventListener('click', () => {
+      startInput.value = '';
+      endInput.value = '';
+      revenueStartDate = '';
+      revenueEndDate = '';
+      loadAdsRevenue();
     });
   }
 }
