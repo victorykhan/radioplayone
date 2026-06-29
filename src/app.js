@@ -30,6 +30,8 @@ import broadcasterRoutes from './routes/broadcasters.js';
 // Playout Engine & Background Sync Imports
 import playoutEngine from './playout/engine.js';
 import { startListenerSync } from './playout/listenerSync.js';
+import { recompilePlayoutConfig } from './routes/broadcasters.js';
+
 
 dotenv.config();
 
@@ -172,6 +174,13 @@ const startServer = async () => {
     app.listen(PORT, () => {
       logger.info(`RadioPlay Web Portal listening on port ${PORT}`);
     });
+
+    // 2.5. Compile Playout Liquidsoap configuration on startup
+    try {
+      await recompilePlayoutConfig();
+    } catch (e) {
+      logger.error('Failed compiling playout.liq on startup: %s', e.message);
+    }
 
     // 3. Start Playout Automation Loop
     // To prevent boot loops in testing if ffmpeg/icecast isn't running,
