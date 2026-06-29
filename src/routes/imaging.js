@@ -86,7 +86,54 @@ router.post('/', authenticateJWT, requireRole(['ADMIN', 'PRODUCER']), async (req
   }
 });
 
-// 3. Delete an Imaging Element
+// 3. Update/Edit an Imaging Element
+router.patch('/:id', authenticateJWT, requireRole(['ADMIN', 'PRODUCER']), async (req, res) => {
+  const id = req.params.id;
+  const { name, type, trackId, slotNumber, isActive } = req.body;
+
+  try {
+    const item = await prisma.imagingElement.findUnique({ where: { id } });
+    if (!item) {
+      return res.status(404).json({ error: 'Imaging element not found' });
+    }
+
+    const data = {};
+    if (name !== undefined) data.name = name;
+    if (type !== undefined) {
+      const validTypes = ['SWEEPER', 'STATION_ID', 'DJ_DROP', 'INSTANT_CART'];
+      if (!validTypes.includes(type)) {
+        return res.status(400).json({ error: `Invalid type. Must be one of: ${validTypes.join(', ')}` });
+      }
+      data.type = type;
+    }
+    if (trackId !== undefined) {
+      const track = await prisma.track.findUnique({ where: { id: parseInt(trackId) } });
+      if (!track || track.isDeleted) {
+        return res.status(404).json({ error: 'Assigned audio track not found or soft-deleted' });
+      }
+      data.trackId = parseInt(trackId);
+    }
+    if (slotNumber !== undefined) {
+      data.slotNumber = slotNumber ? parseInt(slotNumber) : null;
+    }
+    if (isActive !== undefined) {
+      data.isActive = !!isActive;
+    }
+
+    const updated = await prisma.imagingElement.update({
+      where: { id },
+      data,
+      include: { track: true }
+    });
+
+    res.json(updated);
+  } catch (error) {
+    logger.error('Failed to update imaging element: %O', error);
+    res.status(500).json({ error: 'Failed to update imaging element' });
+  }
+});
+
+// 4. Delete an Imaging Element
 router.delete('/:id', authenticateJWT, requireRole(['ADMIN', 'PRODUCER']), async (req, res) => {
   const id = req.params.id;
 

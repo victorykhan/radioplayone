@@ -868,6 +868,7 @@
           <div style="display: flex; flex-direction: column; gap: 24px;">
             <!-- Register Form -->
             <form id="imaging-creator-form" style="display: flex; flex-direction: column; gap: 14px; background: rgba(255,255,255,0.015); border: 1px solid rgba(255,255,255,0.04); padding: 18px; border-radius: 10px;">
+              <h4 id="imaging-form-title" style="font-weight: 600; margin-top: 0; margin-bottom: 5px; font-size: 13.5px;">Register New Playout Element</h4>
               <div class="form-group">
                 <label class="form-label">Element Name</label>
                 <input type="text" id="imaging-name-input" class="form-input" placeholder="e.g. Laser SFX" required>
@@ -891,7 +892,10 @@
                 <label class="form-label">Hotkey Slot (1-12)</label>
                 <input type="number" id="imaging-slot-input" class="form-input" min="1" max="12" value="1">
               </div>
-              <button type="submit" class="form-input" style="background: var(--primary-color); color: #000; font-weight: 600; border: none; cursor: pointer;">Register Element</button>
+              <div style="display: flex; gap: 10px;">
+                <button type="submit" id="btn-submit-imaging" class="form-input" style="flex: 1; background: var(--primary-color); color: #000; font-weight: 600; border: none; cursor: pointer;">Register Element</button>
+                <button type="button" id="btn-cancel-edit-imaging" class="form-input" style="width: auto; display: none; background: rgba(255,255,255,0.05); border-color: rgba(255,255,255,0.1); cursor: pointer; color: var(--text-main);">Cancel</button>
+              </div>
             </form>
             
             <hr style="border: 0; border-top: 1px solid rgba(255,255,255,0.08); margin: 10px 0;">

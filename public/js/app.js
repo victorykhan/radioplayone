@@ -3898,6 +3898,8 @@ function populateSchedulePlaylistSelect() {
 }
 
 // === IMAGING & SOUNDBOARD KEY MANAGER ===
+let editingImagingId = null;
+
 function loadImagingElements() {
   apiFetch('/imaging')
     .then(items => {
@@ -3915,7 +3917,10 @@ function loadImagingElements() {
               <td><span style="font-size: 11px; background: rgba(255,255,255,0.06); padding: 2px 6px; border-radius: 4px; color: var(--primary-color);">${item.type}</span></td>
               <td>${item.track ? item.track.title : 'No track'}</td>
               <td style="text-align: center;">
-                <button class="queue-action-btn queue-action-danger" style="padding: 4px 8px; font-size: 11px;" onclick="deleteImagingElement('${item.id}')">Delete</button>
+                <div style="display: flex; gap: 4px; justify-content: center;">
+                  <button class="queue-action-btn" style="padding: 4px 8px; font-size: 11px;" onclick="editImagingElement('${item.id}')">Edit</button>
+                  <button class="queue-action-btn queue-action-danger" style="padding: 4px 8px; font-size: 11px;" onclick="deleteImagingElement('${item.id}')">Delete</button>
+                </div>
               </td>
             `;
             tbody.appendChild(tr);
@@ -3963,12 +3968,56 @@ function deleteImagingElement(id) {
     })
     .then(() => {
       showNotification('Imaging element deleted', 'success');
+      if (editingImagingId === id) resetImagingForm();
       loadImagingElements();
     })
     .catch(err => showNotification(err.message, 'error'));
   });
 }
 window.deleteImagingElement = deleteImagingElement;
+
+function editImagingElement(id) {
+  apiFetch('/imaging')
+    .then(items => {
+      const item = items.find(i => i.id === id);
+      if (!item) return;
+      
+      editingImagingId = item.id;
+      document.getElementById('imaging-form-title').textContent = '✏️ Edit Playout Element';
+      document.getElementById('imaging-name-input').value = item.name;
+      document.getElementById('imaging-type-input').value = item.type;
+      document.getElementById('imaging-track-select').value = item.trackId;
+      document.getElementById('imaging-slot-input').value = item.slotNumber || 1;
+      
+      const slotGroup = document.getElementById('imaging-slot-group');
+      if (slotGroup) {
+        slotGroup.style.display = (item.type === 'INSTANT_CART') ? 'block' : 'none';
+      }
+      
+      document.getElementById('btn-submit-imaging').textContent = '💾 Update Element';
+      document.getElementById('btn-cancel-edit-imaging').style.display = 'block';
+    })
+    .catch(err => console.error('Failed loading element to edit:', err));
+}
+window.editImagingElement = editImagingElement;
+
+function resetImagingForm() {
+  editingImagingId = null;
+  document.getElementById('imaging-form-title').textContent = 'Register New Playout Element';
+  document.getElementById('imaging-name-input').value = '';
+  document.getElementById('imaging-type-input').value = 'INSTANT_CART';
+  document.getElementById('imaging-track-select').value = '';
+  document.getElementById('imaging-slot-input').value = '1';
+  
+  const slotGroup = document.getElementById('imaging-slot-group');
+  if (slotGroup) {
+    slotGroup.style.display = 'block';
+  }
+  
+  document.getElementById('btn-submit-imaging').textContent = 'Register Element';
+  document.getElementById('btn-cancel-edit-imaging').style.display = 'none';
+}
+window.resetImagingForm = resetImagingForm;
 
 function populateImagingTrackSelect() {
   const select = document.getElementById('imaging-track-select');
@@ -3998,13 +4047,16 @@ function setupImagingEvents() {
       const trackId = document.getElementById('imaging-track-select').value;
       const slotNumber = document.getElementById('imaging-slot-input').value;
       
-      apiFetch('/imaging', {
-        method: 'POST',
+      const method = editingImagingId ? 'PATCH' : 'POST';
+      const url = editingImagingId ? `/imaging/${editingImagingId}` : '/imaging';
+      
+      apiFetch(url, {
+        method,
         body: { name, type, trackId, slotNumber }
       })
       .then(() => {
-        showNotification('Imaging element registered successfully', 'success');
-        form.reset();
+        showNotification(editingImagingId ? 'Imaging element updated successfully' : 'Imaging element registered successfully', 'success');
+        resetImagingForm();
         loadImagingElements();
       })
       .catch(err => showNotification(err.message, 'error'));
@@ -4016,6 +4068,13 @@ function setupImagingEvents() {
     if (typeSelect && slotGroup) {
       typeSelect.addEventListener('change', () => {
         slotGroup.style.display = (typeSelect.value === 'INSTANT_CART') ? 'block' : 'none';
+      });
+    }
+    
+    const cancelEditBtn = document.getElementById('btn-cancel-edit-imaging');
+    if (cancelEditBtn) {
+      cancelEditBtn.addEventListener('click', () => {
+        resetImagingForm();
       });
     }
   }
