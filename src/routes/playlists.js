@@ -410,4 +410,78 @@ router.delete('/schedules/slots/:id', authenticateJWT, requireRole(['ADMIN', 'PR
   }
 });
 
+// 12. Update/Edit a schedule slot (converts station timezone inputs to UTC)
+router.patch('/schedules/slots/:id', authenticateJWT, requireRole(['ADMIN', 'PRODUCER']), async (req, res) => {
+  const id = req.params.id;
+  const { playlistId, startAt, endAt } = req.body;
+
+  if (!playlistId || !startAt || !endAt) {
+    return res.status(400).json({ error: 'playlistId, startAt, and endAt are required' });
+  }
+
+  try {
+    const slot = await prisma.scheduleSlot.findUnique({ where: { id } });
+    if (!slot) {
+      return res.status(404).json({ error: 'Schedule slot not found' });
+    }
+
+    const tz = await getStationTimezone();
+    
+    // Parse client date-times relative to target timezone and convert to UTC
+    const startUTC = convertToUTC(startAt, tz);
+    const endUTC = convertToUTC(endAt, tz);
+
+    if (startUTC >= endUTC) {
+      return res.status(400).json({ error: 'Start time must be before end time' });
+    }
+
+    // Check for overlap in scheduled slots (excluding the current slot id)
+    const overlap = await prisma.scheduleSlot.findFirst({
+      where: {
+        id: { not: id },
+        OR: [
+          {
+            startAt: { lte: startUTC },
+            endAt: { gte: startUTC }
+          },
+          {
+            startAt: { lte: endUTC },
+            endAt: { gte: endUTC }
+          },
+          {
+            startAt: { gte: startUTC },
+            endAt: { lte: endUTC }
+          }
+        ]
+      }
+    });
+
+    if (overlap) {
+      return res.status(400).json({ error: 'Schedule slot overlaps with an existing slot.' });
+    }
+
+    const updated = await prisma.scheduleSlot.update({
+      where: { id },
+      data: {
+        playlistId: parseInt(playlistId),
+        startAt: startUTC,
+        endAt: endUTC
+      }
+    });
+
+    await prisma.activityLog.create({
+      data: {
+        userId: req.user.id,
+        action: 'SCHEDULE_SLOT_UPDATED',
+        details: `Updated schedule slot ID ${id} to playlist ID ${playlistId} from ${startAt} to ${endAt} (${tz})`
+      }
+    });
+
+    res.json(updated);
+  } catch (error) {
+    logger.error('Failed to update schedule slot: %O', error);
+    res.status(500).json({ error: 'Failed to update schedule slot' });
+  }
+});
+
 export default router;

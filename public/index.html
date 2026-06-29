@@ -15,6 +15,8 @@
 
   <link rel="stylesheet" href="/css/style.css">
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <link href="https://cdn.jsdelivr.net/npm/fullcalendar@6.1.11/index.global.min.css" rel="stylesheet" />
+  <script src="https://cdn.jsdelivr.net/npm/fullcalendar@6.1.11/index.global.min.js"></script>
   
   <style id="theme-inline-styles">
     :root {
@@ -520,6 +522,8 @@
           <div style="display: grid; grid-template-columns: 320px 1fr; gap: 30px;">
             <!-- Scheduler Form -->
             <form id="scheduler-form" style="display: flex; flex-direction: column; gap: 16px; background: rgba(255,255,255,0.015); border: 1px solid rgba(255,255,255,0.04); padding: 20px; border-radius: 12px;">
+              <h4 id="scheduler-form-title" style="font-weight: 600; margin-top: 0; margin-bottom: 5px; font-size: 13.5px;">Schedule New Show Slot</h4>
+              <input type="hidden" id="schedule-slot-id">
               <div class="form-group">
                 <label class="form-label">Select Playlist to Schedule</label>
                 <select id="schedule-playlist-select" class="form-input" style="background: rgba(0,0,0,0.3); color: var(--text-main); font-size: 13px;" required>
@@ -534,24 +538,16 @@
                 <label class="form-label">End Date & Time</label>
                 <input type="datetime-local" id="schedule-end-at" class="form-input" required>
               </div>
-              <button type="submit" class="form-input" style="background: var(--primary-color); color: #000; border: none; font-weight: 600; cursor: pointer; margin-top: 10px;">Schedule Show Slot</button>
+              <div style="display: flex; gap: 8px; flex-wrap: wrap;">
+                <button type="submit" id="btn-submit-scheduler" class="form-input" style="flex: 1; min-width: 120px; background: var(--primary-color); color: #000; border: none; font-weight: 600; cursor: pointer; margin-top: 10px;">Schedule Show Slot</button>
+                <button type="button" id="btn-delete-scheduler" class="form-input" style="width: auto; display: none; background: #ff3366; border: none; cursor: pointer; color: #fff; font-weight: 600; margin-top: 10px;">Delete</button>
+                <button type="button" id="btn-cancel-edit-scheduler" class="form-input" style="width: auto; display: none; background: rgba(255,255,255,0.05); border-color: rgba(255,255,255,0.1); cursor: pointer; color: var(--text-main); margin-top: 10px;">Cancel</button>
+              </div>
             </form>
             
-            <!-- Slots Table -->
-            <div class="table-container" style="max-height: 360px; overflow-y: auto;">
-              <table class="library-table">
-                <thead>
-                  <tr>
-                    <th>Playlist</th>
-                    <th>Start Time</th>
-                    <th>End Time</th>
-                    <th style="width: 80px; text-align: center;">Action</th>
-                  </tr>
-                </thead>
-                <tbody id="scheduler-table-body">
-                  <tr><td colspan="4" style="text-align: center; color: var(--text-muted); padding: 20px 0;">Loading scheduled slots...</td></tr>
-                </tbody>
-              </table>
+            <!-- Slots Calendar -->
+            <div id="calendar-wrapper" style="background: rgba(0,0,0,0.25); border: 1px solid rgba(255,255,255,0.06); border-radius: 12px; padding: 15px; min-height: 480px; color: #fff;">
+              <div id="calendar-container"></div>
             </div>
           </div>
         </div>

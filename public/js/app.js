@@ -4005,31 +4005,93 @@ function loadDeckManualSelectors() {
 })();
 
 // === CALENDAR SHOW SCHEDULER (3 MONTHS IN ADVANCE) ===
+let calendarInstance = null;
+let editingScheduleSlotId = null;
+
 function loadScheduledSlots() {
   apiFetch('/playlists/schedules/slots')
     .then(slots => {
-      const tbody = document.getElementById('scheduler-table-body');
-      if (!tbody) return;
-      if (!slots || slots.length === 0) {
-        tbody.innerHTML = `<tr><td colspan="4" style="text-align: center; color: var(--text-muted); padding: 20px 0;">No calendar slots scheduled yet.</td></tr>`;
-        return;
-      }
-      
-      tbody.innerHTML = '';
-      slots.forEach(slot => {
-        const tr = document.createElement('tr');
-        tr.innerHTML = `
-          <td><strong>${slot.playlistName}</strong></td>
-          <td>${slot.startAt}</td>
-          <td>${slot.endAt}</td>
-          <td style="text-align: center;">
-            <button class="queue-action-btn queue-action-danger" style="padding: 4px 8px; font-size: 11px;" onclick="deleteScheduleSlot('${slot.id}')">Delete</button>
-          </td>
-        `;
-        tbody.appendChild(tr);
+      const calendarEl = document.getElementById('calendar-container');
+      if (!calendarEl) return;
+
+      const events = slots.map(slot => {
+        // Convert yyyy-mm-dd hh:mm to ISO string format "yyyy-mm-ddThh:mm"
+        const startISO = slot.startAt.replace(' ', 'T');
+        const endISO = slot.endAt.replace(' ', 'T');
+        return {
+          id: slot.id,
+          title: slot.playlistName,
+          start: startISO,
+          end: endISO,
+          extendedProps: {
+            playlistId: slot.playlistId,
+            rawStart: slot.startAt,
+            rawEnd: slot.endAt
+          },
+          backgroundColor: 'rgba(0, 240, 255, 0.15)',
+          borderColor: 'var(--primary-color)',
+          textColor: '#fff'
+        };
       });
+
+      if (!calendarInstance) {
+        calendarInstance = new FullCalendar.Calendar(calendarEl, {
+          initialView: 'timeGridWeek',
+          headerToolbar: {
+            left: 'prev,next today',
+            center: 'title',
+            right: 'timeGridWeek,timeGridDay,dayGridMonth'
+          },
+          allDaySlot: false,
+          slotMinTime: '00:00:00',
+          slotMaxTime: '24:00:00',
+          expandRows: true,
+          events: events,
+          eventClick: function(info) {
+            editScheduleSlot(info.event);
+          },
+          themeSystem: 'standard'
+        });
+        calendarInstance.render();
+      } else {
+        calendarInstance.removeAllEvents();
+        calendarInstance.addEventSource(events);
+        // Force size recalculation because tab visibility might have changed
+        setTimeout(() => calendarInstance.updateSize(), 50);
+      }
     })
     .catch(err => console.error('Failed loading scheduled slots:', err));
+}
+
+function editScheduleSlot(event) {
+  editingScheduleSlotId = event.id;
+  const startLocalStr = event.extendedProps.rawStart.replace(' ', 'T');
+  const endLocalStr = event.extendedProps.rawEnd.replace(' ', 'T');
+
+  document.getElementById('scheduler-form-title').textContent = '✏️ Edit Scheduled Show Slot';
+  document.getElementById('schedule-slot-id').value = event.id;
+  document.getElementById('schedule-playlist-select').value = event.extendedProps.playlistId;
+  document.getElementById('schedule-start-at').value = startLocalStr;
+  document.getElementById('schedule-end-at').value = endLocalStr;
+
+  document.getElementById('btn-submit-scheduler').textContent = '💾 Update Show Slot';
+  document.getElementById('btn-delete-scheduler').style.display = 'block';
+  document.getElementById('btn-cancel-edit-scheduler').style.display = 'block';
+
+  document.getElementById('scheduler-form').scrollIntoView({ behavior: 'smooth' });
+}
+
+function resetSchedulerForm() {
+  editingScheduleSlotId = null;
+  document.getElementById('scheduler-form-title').textContent = 'Schedule New Show Slot';
+  document.getElementById('schedule-slot-id').value = '';
+  document.getElementById('schedule-playlist-select').value = '';
+  document.getElementById('schedule-start-at').value = '';
+  document.getElementById('schedule-end-at').value = '';
+
+  document.getElementById('btn-submit-scheduler').textContent = 'Schedule Show Slot';
+  document.getElementById('btn-delete-scheduler').style.display = 'none';
+  document.getElementById('btn-cancel-edit-scheduler').style.display = 'none';
 }
 
 function deleteScheduleSlot(id) {
@@ -4039,6 +4101,7 @@ function deleteScheduleSlot(id) {
     })
     .then(() => {
       showNotification('Scheduled slot deleted', 'success');
+      resetSchedulerForm();
       loadScheduledSlots();
     })
     .catch(err => showNotification(err.message, 'error'));
@@ -4059,18 +4122,37 @@ function setupSchedulerEvents() {
         showNotification('Please fill in all scheduling fields', 'info');
         return;
       }
+
+      const method = editingScheduleSlotId ? 'PATCH' : 'POST';
+      const url = editingScheduleSlotId ? `/playlists/schedules/slots/${editingScheduleSlotId}` : '/playlists/schedules/slots';
       
-      apiFetch('/playlists/schedules/slots', {
-        method: 'POST',
+      apiFetch(url, {
+        method,
         body: { playlistId, startAt, endAt }
       })
       .then(() => {
-        showNotification('Show scheduled successfully', 'success');
-        form.reset();
+        showNotification(editingScheduleSlotId ? 'Show slot updated successfully' : 'Show slot scheduled successfully', 'success');
+        resetSchedulerForm();
         loadScheduledSlots();
       })
       .catch(err => showNotification(err.message, 'error'));
     });
+
+    const cancelBtn = document.getElementById('btn-cancel-edit-scheduler');
+    if (cancelBtn) {
+      cancelBtn.addEventListener('click', () => {
+        resetSchedulerForm();
+      });
+    }
+
+    const deleteBtn = document.getElementById('btn-delete-scheduler');
+    if (deleteBtn) {
+      deleteBtn.addEventListener('click', () => {
+        if (editingScheduleSlotId) {
+          deleteScheduleSlot(editingScheduleSlotId);
+        }
+      });
+    }
   }
 }
 
