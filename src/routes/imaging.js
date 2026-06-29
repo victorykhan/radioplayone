@@ -24,7 +24,7 @@ router.get('/', authenticateJWT, async (req, res) => {
 
 // 2. Create/Register a new Imaging Element (Sweeper, ID, Drop, Instant Cart)
 router.post('/', authenticateJWT, requireRole(['ADMIN', 'PRODUCER']), async (req, res) => {
-  const { name, type, trackId, slotNumber } = req.body;
+  const { name, type, trackId, slotNumber, bpmMin, bpmMax, energyMin, energyMax, mood, playMode } = req.body;
 
   if (!name || !type || !trackId) {
     return res.status(400).json({ error: 'Name, type, and trackId are required' });
@@ -64,7 +64,13 @@ router.post('/', authenticateJWT, requireRole(['ADMIN', 'PRODUCER']), async (req
         name,
         type,
         trackId: parseInt(trackId),
-        slotNumber: slot
+        slotNumber: slot,
+        bpmMin: bpmMin ? parseFloat(bpmMin) : null,
+        bpmMax: bpmMax ? parseFloat(bpmMax) : null,
+        energyMin: energyMin ? parseInt(energyMin) : null,
+        energyMax: energyMax ? parseInt(energyMax) : null,
+        mood: mood || null,
+        playMode: playMode || 'OVERLAY'
       },
       include: {
         track: true
@@ -89,7 +95,7 @@ router.post('/', authenticateJWT, requireRole(['ADMIN', 'PRODUCER']), async (req
 // 3. Update/Edit an Imaging Element
 router.patch('/:id', authenticateJWT, requireRole(['ADMIN', 'PRODUCER']), async (req, res) => {
   const id = req.params.id;
-  const { name, type, trackId, slotNumber, isActive } = req.body;
+  const { name, type, trackId, slotNumber, isActive, bpmMin, bpmMax, energyMin, energyMax, mood, playMode } = req.body;
 
   try {
     const item = await prisma.imagingElement.findUnique({ where: { id } });
@@ -119,6 +125,12 @@ router.patch('/:id', authenticateJWT, requireRole(['ADMIN', 'PRODUCER']), async 
     if (isActive !== undefined) {
       data.isActive = !!isActive;
     }
+    if (bpmMin !== undefined) data.bpmMin = bpmMin ? parseFloat(bpmMin) : null;
+    if (bpmMax !== undefined) data.bpmMax = bpmMax ? parseFloat(bpmMax) : null;
+    if (energyMin !== undefined) data.energyMin = energyMin ? parseInt(energyMin) : null;
+    if (energyMax !== undefined) data.energyMax = energyMax ? parseInt(energyMax) : null;
+    if (mood !== undefined) data.mood = mood || null;
+    if (playMode !== undefined) data.playMode = playMode || 'OVERLAY';
 
     const updated = await prisma.imagingElement.update({
       where: { id },

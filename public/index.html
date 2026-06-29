@@ -1081,6 +1081,47 @@
                 <label class="form-label">Hotkey Slot (1-12)</label>
                 <input type="number" id="imaging-slot-input" class="form-input" min="1" max="12" value="1">
               </div>
+
+              <!-- Sweeper Rules Section (Hidden by default for Carts) -->
+              <div id="sweeper-rules-section" style="display: none; border-top: 1px solid rgba(255,255,255,0.06); padding-top: 14px; flex-direction: column; gap: 12px;">
+                <h4 style="font-weight: 600; font-size: 13px; color: var(--primary-color);">Soundboard Transition & Matching Rules</h4>
+                
+                <div class="form-group">
+                  <label class="form-label">Playout Mode</label>
+                  <select id="imaging-play-mode-input" class="form-input" style="background: rgba(0,0,0,0.3); color: var(--text-main);">
+                    <option value="OVERLAY" selected>🔊 OVERLAY (Ducks intro vocals)</option>
+                    <option value="TRANSITION">🔄 TRANSITION (Plays sequentially between tracks)</option>
+                  </select>
+                </div>
+
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px;">
+                  <div class="form-group" style="margin-bottom: 0;">
+                    <label class="form-label">Min BPM</label>
+                    <input type="number" id="imaging-bpm-min" class="form-input" placeholder="e.g. 100">
+                  </div>
+                  <div class="form-group" style="margin-bottom: 0;">
+                    <label class="form-label">Max BPM</label>
+                    <input type="number" id="imaging-bpm-max" class="form-input" placeholder="e.g. 130">
+                  </div>
+                </div>
+
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px;">
+                  <div class="form-group" style="margin-bottom: 0;">
+                    <label class="form-label">Min Energy (1-100)</label>
+                    <input type="number" id="imaging-energy-min" class="form-input" placeholder="e.g. 60" min="1" max="100">
+                  </div>
+                  <div class="form-group" style="margin-bottom: 0;">
+                    <label class="form-label">Max Energy (1-100)</label>
+                    <input type="number" id="imaging-energy-max" class="form-input" placeholder="e.g. 90" min="1" max="100">
+                  </div>
+                </div>
+
+                <div class="form-group">
+                  <label class="form-label">Match Mood Tag</label>
+                  <input type="text" id="imaging-mood-input" class="form-input" placeholder="e.g. energetic, happy">
+                </div>
+              </div>
+
               <div style="display: flex; gap: 10px;">
                 <button type="submit" id="btn-submit-imaging" class="form-input" style="flex: 1; background: var(--primary-color); color: #000; font-weight: 600; border: none; cursor: pointer;">Register Element</button>
                 <button type="button" id="btn-cancel-edit-imaging" class="form-input" style="width: auto; display: none; background: rgba(255,255,255,0.05); border-color: rgba(255,255,255,0.1); cursor: pointer; color: var(--text-main);">Cancel</button>
@@ -1345,6 +1386,23 @@
           <div id="drawer-categories-list" style="max-height: 120px; overflow-y: auto; background: rgba(0,0,0,0.2); padding: 10px; border-radius: 6px; border: 1px solid rgba(255,255,255,0.1); display: grid; grid-template-columns: 1fr; gap: 8px;">
             <!-- Populated dynamically with checkboxes -->
           </div>
+        </div>
+
+        <hr style="border: 0; border-top: 1px solid rgba(255,255,255,0.08); margin: 20px 0;">
+        <h4 style="font-size: 12px; color: var(--primary-color); font-weight: 600; text-transform: uppercase; margin-bottom: 12px;">Musical Metadata</h4>
+        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 12px;">
+          <div class="form-group" style="margin-bottom: 0;">
+            <label class="form-label">BPM (Beats Per Minute)</label>
+            <input type="number" id="drawer-bpm" class="form-input" placeholder="e.g. 120" step="1">
+          </div>
+          <div class="form-group" style="margin-bottom: 0;">
+            <label class="form-label">Energy Level (1-100)</label>
+            <input type="number" id="drawer-energy" class="form-input" placeholder="e.g. 80" min="1" max="100" step="1">
+          </div>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Mood Tags</label>
+          <input type="text" id="drawer-mood" class="form-input" placeholder="e.g. chill, energetic, happy">
         </div>
         
         <hr style="border: 0; border-top: 1px solid rgba(255,255,255,0.08); margin: 20px 0;">

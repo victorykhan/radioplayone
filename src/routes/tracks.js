@@ -448,7 +448,8 @@ router.patch('/:id', authenticateJWT, requireRole(['ADMIN', 'PRODUCER', 'DJ']), 
   // Filter allowed fields to prevent arbitrary updates
   const allowedFields = [
     'title', 'artist', 'album', 'fileType', 'isExplicit',
-    'volumeTrim', 'cueStart', 'cueIntro', 'cueOutro', 'cueEnd', 'fadeDuration', 'categoryIds'
+    'volumeTrim', 'cueStart', 'cueIntro', 'cueOutro', 'cueEnd', 'fadeDuration', 'categoryIds',
+    'bpm', 'energy', 'mood'
   ];
 
   const filteredUpdates = {};
@@ -471,6 +472,22 @@ router.patch('/:id', authenticateJWT, requireRole(['ADMIN', 'PRODUCER', 'DJ']), 
             filteredUpdates[field] = val;
           }
         }
+      } else if (field === 'bpm') {
+        if (updates[field] === '' || updates[field] === null || updates[field] === undefined) {
+          filteredUpdates[field] = null;
+        } else {
+          const val = parseFloat(updates[field]);
+          filteredUpdates[field] = isNaN(val) ? null : val;
+        }
+      } else if (field === 'energy') {
+        if (updates[field] === '' || updates[field] === null || updates[field] === undefined) {
+          filteredUpdates[field] = null;
+        } else {
+          const val = parseInt(updates[field]);
+          filteredUpdates[field] = isNaN(val) ? null : val;
+        }
+      } else if (field === 'mood') {
+        filteredUpdates[field] = (updates[field] === '' || updates[field] === null) ? null : String(updates[field]);
       } else if (field === 'categoryIds') {
         if (Array.isArray(updates[field])) {
           filteredUpdates.categories = {

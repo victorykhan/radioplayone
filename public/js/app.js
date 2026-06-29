@@ -1304,6 +1304,9 @@ function setupTrackDrawer() {
       cueEnd: document.getElementById('drawer-cue-end').value,
       volumeTrim: document.getElementById('drawer-vol-trim').value,
       fadeDuration: document.getElementById('drawer-fade-duration').value || null,
+      bpm: document.getElementById('drawer-bpm').value || null,
+      energy: document.getElementById('drawer-energy').value || null,
+      mood: document.getElementById('drawer-mood').value || '',
       categoryIds: checkedCategories
     };
 
@@ -1329,6 +1332,11 @@ function openEditDrawer(track) {
   document.getElementById('drawer-input-artist').value = track.artist || '';
   document.getElementById('drawer-input-album').value = track.album || '';
   document.getElementById('drawer-select-type').value = track.fileType;
+  
+  // BPM, Energy, Mood
+  document.getElementById('drawer-bpm').value = track.bpm !== null && track.bpm !== undefined ? track.bpm : '';
+  document.getElementById('drawer-energy').value = track.energy !== null && track.energy !== undefined ? track.energy : '';
+  document.getElementById('drawer-mood').value = track.mood || '';
   
   // Cue Start: if not specified or equals 0, show empty (optional)
   document.getElementById('drawer-cue-start').value = (track.cueStart !== undefined && track.cueStart !== null && track.cueStart !== 0) ? track.cueStart : '';
@@ -4127,10 +4135,20 @@ function editImagingElement(id) {
       document.getElementById('imaging-track-select').value = item.trackId;
       document.getElementById('imaging-slot-input').value = item.slotNumber || 1;
       
+      // Load rules
+      document.getElementById('imaging-play-mode-input').value = item.playMode || 'OVERLAY';
+      document.getElementById('imaging-bpm-min').value = item.bpmMin !== null && item.bpmMin !== undefined ? item.bpmMin : '';
+      document.getElementById('imaging-bpm-max').value = item.bpmMax !== null && item.bpmMax !== undefined ? item.bpmMax : '';
+      document.getElementById('imaging-energy-min').value = item.energyMin !== null && item.energyMin !== undefined ? item.energyMin : '';
+      document.getElementById('imaging-energy-max').value = item.energyMax !== null && item.energyMax !== undefined ? item.energyMax : '';
+      document.getElementById('imaging-mood-input').value = item.mood || '';
+
       const slotGroup = document.getElementById('imaging-slot-group');
-      if (slotGroup) {
-        slotGroup.style.display = (item.type === 'INSTANT_CART') ? 'block' : 'none';
-      }
+      const rulesSection = document.getElementById('sweeper-rules-section');
+      const isCart = item.type === 'INSTANT_CART';
+
+      if (slotGroup) slotGroup.style.display = isCart ? 'block' : 'none';
+      if (rulesSection) rulesSection.style.display = isCart ? 'none' : 'flex';
       
       document.getElementById('btn-submit-imaging').textContent = '💾 Update Element';
       document.getElementById('btn-cancel-edit-imaging').style.display = 'block';
@@ -4147,10 +4165,18 @@ function resetImagingForm() {
   document.getElementById('imaging-track-select').value = '';
   document.getElementById('imaging-slot-input').value = '1';
   
+  // Clear rules
+  document.getElementById('imaging-play-mode-input').value = 'OVERLAY';
+  document.getElementById('imaging-bpm-min').value = '';
+  document.getElementById('imaging-bpm-max').value = '';
+  document.getElementById('imaging-energy-min').value = '';
+  document.getElementById('imaging-energy-max').value = '';
+  document.getElementById('imaging-mood-input').value = '';
+
   const slotGroup = document.getElementById('imaging-slot-group');
-  if (slotGroup) {
-    slotGroup.style.display = 'block';
-  }
+  const rulesSection = document.getElementById('sweeper-rules-section');
+  if (slotGroup) slotGroup.style.display = 'block';
+  if (rulesSection) rulesSection.style.display = 'none';
   
   document.getElementById('btn-submit-imaging').textContent = 'Register Element';
   document.getElementById('btn-cancel-edit-imaging').style.display = 'none';
@@ -4185,12 +4211,22 @@ function setupImagingEvents() {
       const trackId = document.getElementById('imaging-track-select').value;
       const slotNumber = document.getElementById('imaging-slot-input').value;
       
+      const playMode = document.getElementById('imaging-play-mode-input').value;
+      const bpmMin = document.getElementById('imaging-bpm-min').value;
+      const bpmMax = document.getElementById('imaging-bpm-max').value;
+      const energyMin = document.getElementById('imaging-energy-min').value;
+      const energyMax = document.getElementById('imaging-energy-max').value;
+      const mood = document.getElementById('imaging-mood-input').value;
+
       const method = editingImagingId ? 'PATCH' : 'POST';
       const url = editingImagingId ? `/imaging/${editingImagingId}` : '/imaging';
       
       apiFetch(url, {
         method,
-        body: { name, type, trackId, slotNumber }
+        body: { 
+          name, type, trackId, slotNumber,
+          playMode, bpmMin, bpmMax, energyMin, energyMax, mood
+        }
       })
       .then(() => {
         showNotification(editingImagingId ? 'Imaging element updated successfully' : 'Imaging element registered successfully', 'success');
@@ -4200,12 +4236,15 @@ function setupImagingEvents() {
       .catch(err => showNotification(err.message, 'error'));
     });
     
-    // Toggle slot number field based on type selector
+    // Toggle slot number vs rules section based on type selector
     const typeSelect = document.getElementById('imaging-type-input');
     const slotGroup = document.getElementById('imaging-slot-group');
-    if (typeSelect && slotGroup) {
+    const rulesSection = document.getElementById('sweeper-rules-section');
+    if (typeSelect) {
       typeSelect.addEventListener('change', () => {
-        slotGroup.style.display = (typeSelect.value === 'INSTANT_CART') ? 'block' : 'none';
+        const isCart = typeSelect.value === 'INSTANT_CART';
+        if (slotGroup) slotGroup.style.display = isCart ? 'block' : 'none';
+        if (rulesSection) rulesSection.style.display = isCart ? 'none' : 'flex';
       });
     }
     

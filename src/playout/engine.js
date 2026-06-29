@@ -131,6 +131,21 @@ class PlayoutEngine {
         }
       }
 
+      // 4.5. Check if we need to insert a Transition Sweeper (Layer 3 & 4 sequential transition)
+      if (this.musicCountSinceLastSweeper >= 3 && (!playoutState.queue || playoutState.queue.length === 0)) {
+        const nextSong = await this.peekNextScheduledTrack();
+        if (nextSong && nextSong.fileType === 'SONG') {
+          const transitionTrack = await this.findMatchingImaging(nextSong, 'TRANSITION');
+          if (transitionTrack) {
+            this.musicCountSinceLastSweeper = 0; // Reset counter
+            this.loadingTrack = transitionTrack;
+            this.loadingIsCart = false;
+            logger.info('Liquidsoap: Serving auto-inserted transition sweeper: "%s" before song "%s"', transitionTrack.title, nextSong.title);
+            return transitionTrack;
+          }
+        }
+      }
+
       // 5. Fall through to standard queue/scheduler selection
       const nextTrack = await this.fetchNextTrack();
       if (nextTrack) {
@@ -662,38 +677,134 @@ class PlayoutEngine {
     }
   }
 
+  // Helper to find a matching imaging track for a given song based on rules
+  async findMatchingImaging(song, playMode) {
+    try {
+      const imagings = await prisma.imagingElement.findMany({
+        where: {
+          isActive: true,
+          playMode: playMode,
+          type: { in: ['SWEEPER', 'STATION_ID', 'DJ_DROP'] },
+          track: { isDeleted: false }
+        },
+        include: { track: true }
+      });
+
+      if (imagings.length === 0) return null;
+
+      let candidates = imagings;
+      if (song && song.fileType === 'SONG') {
+        candidates = imagings.filter(img => {
+          // BPM Match
+          if (img.bpmMin !== null && img.bpmMin !== undefined && img.bpmMin > 0) {
+            if (!song.bpm || song.bpm < img.bpmMin) return false;
+          }
+          if (img.bpmMax !== null && img.bpmMax !== undefined && img.bpmMax > 0) {
+            if (!song.bpm || song.bpm > img.bpmMax) return false;
+          }
+          // Energy Match
+          if (img.energyMin !== null && img.energyMin !== undefined && img.energyMin > 0) {
+            if (!song.energy || song.energy < img.energyMin) return false;
+          }
+          if (img.energyMax !== null && img.energyMax !== undefined && img.energyMax > 0) {
+            if (!song.energy || song.energy > img.energyMax) return false;
+          }
+          // Mood Match
+          if (img.mood && img.mood.trim() !== '') {
+            if (!song.mood) return false;
+            const songMoodClean = song.mood.trim().toLowerCase();
+            const imgMoods = img.mood.split(',').map(m => m.trim().toLowerCase());
+            const hasMoodMatch = imgMoods.some(m => songMoodClean.includes(m) || m.includes(songMoodClean));
+            if (!hasMoodMatch) return false;
+          }
+          return true;
+        });
+      }
+
+      if (candidates.length === 0) {
+        candidates = imagings;
+      }
+
+      const randomIndex = Math.floor(Math.random() * candidates.length);
+      return candidates[randomIndex].track;
+    } catch (error) {
+      logger.error('Failed to find matching imaging track: %O', error);
+      return null;
+    }
+  }
+
+  // Peek at the upcoming scheduled track without shifting or advancing index
+  async peekNextScheduledTrack() {
+    try {
+      if (playoutState.upcomingQueue.length > 0) {
+        const manualItem = playoutState.upcomingQueue[0];
+        return await prisma.track.findUnique({ where: { id: manualItem.trackId } });
+      }
+
+      if (playoutState.activePlaylistId !== null) {
+        const activePlaylist = await prisma.playlist.findUnique({
+          where: { id: playoutState.activePlaylistId },
+          include: {
+            tracks: {
+              orderBy: { position: 'asc' },
+              include: { track: true }
+            }
+          }
+        });
+        if (activePlaylist && activePlaylist.tracks.length > 0) {
+          const idx = playoutState.activePlaylistIndex;
+          if (idx >= 0 && idx < activePlaylist.tracks.length) {
+            return activePlaylist.tracks[idx].track;
+          } else if (activePlaylist.isLooping) {
+            return activePlaylist.tracks[0].track;
+          }
+        }
+      }
+
+      const fallbackPlaylists = await prisma.playlist.findMany({
+        where: { isFallbackPool: true },
+        include: {
+          tracks: {
+            orderBy: { position: 'asc' },
+            include: { track: true }
+          }
+        }
+      });
+      if (fallbackPlaylists.length > 0) {
+        const allFallbackTracks = fallbackPlaylists.flatMap(p => p.tracks);
+        if (allFallbackTracks.length > 0) {
+          const idx = playoutState.fallbackPlaylistIndex % allFallbackTracks.length;
+          return allFallbackTracks[idx].track;
+        }
+      }
+
+      const fallbackItem = await prisma.fallbackPoolItem.findFirst({
+        orderBy: { priority: 'desc' },
+        include: { track: true }
+      });
+      if (fallbackItem && !fallbackItem.track.isDeleted) {
+        return fallbackItem.track;
+      }
+
+      return await prisma.track.findFirst({
+        where: { isDeleted: false, fileType: 'SONG' }
+      });
+    } catch (error) {
+      logger.error('Error peeking next track: %O', error);
+      return null;
+    }
+  }
+
   // Fetch a dynamic imaging sweeper track automatically every X tracks
   async fetchNextImagingForLiquidsoap() {
     try {
       if (this.musicCountSinceLastSweeper >= 3) {
-        // Query database for a random active sweeper or drop
-        const count = await prisma.imagingElement.count({
-          where: {
-            isActive: true,
-            type: { in: ['SWEEPER', 'STATION_ID', 'DJ_DROP'] },
-            track: { isDeleted: false }
-          }
-        });
-
-        if (count > 0) {
-          const randomIndex = Math.floor(Math.random() * count);
-          const imaging = await prisma.imagingElement.findMany({
-            where: {
-              isActive: true,
-              type: { in: ['SWEEPER', 'STATION_ID', 'DJ_DROP'] },
-              track: { isDeleted: false }
-            },
-            include: { track: true },
-            skip: randomIndex,
-            take: 1
-          });
-
-          if (imaging.length > 0) {
-            const track = imaging[0].track;
-            logger.info('Scheduler: Serving auto-inserted sweeper: "%s"', track.title);
-            this.musicCountSinceLastSweeper = 0; // Reset counter
-            return track;
-          }
+        const song = playoutState.currentTrack;
+        const track = await this.findMatchingImaging(song, 'OVERLAY');
+        if (track) {
+          logger.info('Scheduler: Serving auto-inserted matched overlay sweeper: "%s" for song "%s"', track.title, song ? song.title : 'None');
+          this.musicCountSinceLastSweeper = 0; // Reset counter
+          return track;
         }
       }
       return null;
