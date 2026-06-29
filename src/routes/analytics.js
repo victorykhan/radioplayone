@@ -123,7 +123,7 @@ router.get('/tracks-performance', authenticateJWT, async (req, res) => {
       orderBy: { playedAt: 'desc' },
       include: {
         track: {
-          select: { title: true, artist: true }
+          select: { title: true, artist: true, fileType: true }
         }
       }
     });
@@ -137,6 +137,7 @@ router.get('/tracks-performance', authenticateJWT, async (req, res) => {
         id: log.id,
         title: log.track.title,
         artist: log.track.artist,
+        fileType: log.track.fileType,
         playedAt: log.playedAt,
         durationPlayed: log.durationPlayed,
         status: log.status,

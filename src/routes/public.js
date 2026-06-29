@@ -13,13 +13,23 @@ router.get('/now-playing', (req, res) => {
   res.setHeader('Content-Type', 'application/json');
   const np = playoutState.getNowPlaying();
   np.isSourceConnected = playoutEngine.isSourceConnected;
+
+  // Mask AD/PROMO track types from the public streams
+  if (np.now_playing && (np.now_playing.fileType === 'AD' || np.now_playing.fileType === 'PROMO')) {
+    np.now_playing = null;
+  }
+  if (np.up_next) {
+    np.up_next = np.up_next.filter(item => item.fileType !== 'AD' && item.fileType !== 'PROMO');
+  }
+
   res.json(np);
 });
 
 // 2. Play history log (CORS-enabled public API)
 router.get('/history', (req, res) => {
   res.setHeader('Access-Control-Allow-Origin', '*');
-  res.json(playoutState.history);
+  const filteredHistory = playoutState.history.filter(item => item.fileType !== 'AD' && item.fileType !== 'PROMO');
+  res.json(filteredHistory);
 });
 
 // 3. Weekly EPG Programming Schedule

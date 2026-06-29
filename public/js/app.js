@@ -1906,14 +1906,19 @@ function loadAnalytics() {
       // Populate retention table
       data.forEach(log => {
         const tr = document.createElement('tr');
+        const isAdOrPromo = log.fileType === 'AD' || log.fileType === 'PROMO';
+        if (isAdOrPromo) {
+          tr.style.color = '#ff4d4d';
+          tr.style.background = 'rgba(255, 62, 62, 0.04)';
+        }
         const timeStr = new Date(log.playedAt).toLocaleTimeString();
         tr.innerHTML = `
-          <td style="font-weight: 600;">${log.title}</td>
+          <td style="font-weight: 600;">${log.title} ${isAdOrPromo ? ' <span style="font-size:10px; opacity:0.75; background:rgba(255,62,62,0.15); padding:1px 4px; border-radius:3px; border:1px solid rgba(255,62,62,0.25);">AD</span>' : ''}</td>
           <td>${log.artist}</td>
           <td>${timeStr}</td>
           <td>${log.listenersStart}</td>
           <td>${log.listenersEnd}</td>
-          <td style="color: ${log.retentionRate >= 100 ? '#55ff00' : '#ff3c3c'}">${log.retentionRate}%</td>
+          <td style="color: ${isAdOrPromo ? '#ff4d4d' : (log.retentionRate >= 100 ? '#55ff00' : '#ff3c3c')}">${log.retentionRate}%</td>
         `;
         tbody.appendChild(tr);
       });

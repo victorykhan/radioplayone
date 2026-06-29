@@ -45,17 +45,19 @@ class PlayoutStateManager {
 
   setCurrentTrack(track) {
     if (this.currentTrack) {
-      // Append current track to history log
-      this.history.unshift({
-        id: this.currentTrack.id,
-        title: this.currentTrack.title,
-        artist: this.currentTrack.artist,
-        fileType: this.currentTrack.fileType,
-        playedAt: this.startedAt,
-        coverArtUrl: `/covers/${this.currentTrack.fileHash}.jpg`
-      });
-      if (this.history.length > 20) {
-        this.history.pop();
+      // Append current track to history log only if not AD or PROMO
+      if (this.currentTrack.fileType !== 'AD' && this.currentTrack.fileType !== 'PROMO') {
+        this.history.unshift({
+          id: this.currentTrack.id,
+          title: this.currentTrack.title,
+          artist: this.currentTrack.artist,
+          fileType: this.currentTrack.fileType,
+          playedAt: this.startedAt,
+          coverArtUrl: `/covers/${this.currentTrack.fileHash}.jpg`
+        });
+        if (this.history.length > 20) {
+          this.history.pop();
+        }
       }
     }
     this.currentTrack = track;
