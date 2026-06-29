@@ -17,6 +17,45 @@ const router = express.Router();
 const uploadDir = path.join(__dirname, '../../storage/uploads');
 const upload = multer({ dest: uploadDir });
 
+// Get public branding settings
+router.get('/public', async (req, res) => {
+  try {
+    const dbSettings = await prisma.systemSetting.findMany();
+    const settings = {};
+    
+    dbSettings.forEach(s => {
+      try {
+        settings[s.key] = JSON.parse(s.value);
+      } catch {
+        settings[s.key] = s.value;
+      }
+    });
+
+    const theme = settings.theme || {
+      primary: '#00f0ff',
+      secondary: '#7000ff',
+      logoUrl: '/images/default-logo.svg'
+    };
+
+    const stationInfo = settings.station_info || {
+      name: 'RadioPlay One',
+      tagline: 'The Ultimate Web Automation System'
+    };
+
+    res.json({
+      stationName: stationInfo.name,
+      tagline: stationInfo.tagline,
+      logoUrl: theme.logoUrl,
+      primaryColor: theme.primary,
+      secondaryColor: theme.secondary,
+      seoTitle: stationInfo.name + ' - ' + (stationInfo.tagline || '')
+    });
+  } catch (error) {
+    logger.error('Failed to get public settings: %O', error);
+    res.status(500).json({ error: 'Failed to retrieve public settings' });
+  }
+});
+
 // 1. Get all settings
 router.get('/', authenticateJWT, async (req, res) => {
   try {
