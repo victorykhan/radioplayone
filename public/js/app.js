@@ -1203,8 +1203,14 @@ function openEditDrawer(track) {
   document.getElementById('drawer-input-album').value = track.album || '';
   document.getElementById('drawer-select-type').value = track.fileType;
   
-  document.getElementById('drawer-cue-start').value = track.cueStart || 0.0;
-  document.getElementById('drawer-cue-end').value = track.cueEnd || track.duration;
+  // Cue Start: if not specified or equals 0, show empty (optional)
+  document.getElementById('drawer-cue-start').value = (track.cueStart !== undefined && track.cueStart !== null && track.cueStart !== 0) ? track.cueStart : '';
+  document.getElementById('drawer-cue-start').placeholder = '0.0 (Default)';
+  
+  // Cue End: if not specified or matches duration, show empty (optional)
+  const isDefaultEnd = !track.cueEnd || Math.abs(track.cueEnd - track.duration) < 0.05;
+  document.getElementById('drawer-cue-end').value = isDefaultEnd ? '' : track.cueEnd;
+  document.getElementById('drawer-cue-end').placeholder = `${Math.round(track.duration * 10) / 10}s (Default)`;
   document.getElementById('drawer-vol-trim').value = track.volumeTrim || 1.0;
   document.getElementById('drawer-fade-duration').value = track.fadeDuration !== null ? track.fadeDuration : '';
 
