@@ -3,6 +3,7 @@ import multer from 'multer';
 import path from 'path';
 import fs from 'fs';
 import { fileURLToPath } from 'url';
+import { exec } from 'child_process';
 import prisma from '../db.js';
 import logger from '../logger.js';
 import { authenticateJWT, requireRole } from './auth.js';
@@ -46,11 +47,26 @@ router.get('/', authenticateJWT, async (req, res) => {
       };
     }
 
+    let maxListeners = 100;
+    try {
+      const xmlPath = path.join(__dirname, '../../icecast.xml');
+      if (fs.existsSync(xmlPath)) {
+        const content = fs.readFileSync(xmlPath, 'utf8');
+        const match = content.match(/<mount-name>\/radio<\/mount-name>[\s\S]*?<max-listeners>(\d+)<\/max-listeners>/);
+        if (match) {
+          maxListeners = parseInt(match[1]);
+        }
+      }
+    } catch (err) {
+      logger.error('Failed to parse icecast.xml for limits: %O', err);
+    }
+
     settings.broadcast = {
       host: process.env.ICECAST_HOST || 'play.vawam.ca',
       port: process.env.ICECAST_PORT || '8000',
       mount: process.env.ICECAST_MOUNT || '/radio.mp3',
-      username: process.env.ICECAST_USERNAME || 'source'
+      username: process.env.ICECAST_USERNAME || 'source',
+      maxListeners
     };
 
     res.json(settings);
@@ -291,6 +307,66 @@ router.post('/default-covers/:slot', authenticateJWT, requireRole(['ADMIN', 'PRO
       fs.unlinkSync(req.file.path);
     }
     res.status(500).json({ error: 'Failed to process default cover art image' });
+  }
+});
+
+// 4. Update Icecast Max Listeners Limit
+router.post('/icecast-limit', authenticateJWT, requireRole(['ADMIN']), async (req, res) => {
+  const { limit } = req.body;
+  const parsedLimit = parseInt(limit);
+  if (isNaN(parsedLimit) || parsedLimit < 1 || parsedLimit > 10000) {
+    return res.status(400).json({ error: 'Limit must be a valid number between 1 and 10000' });
+  }
+
+  try {
+    const xmlPath = path.join(__dirname, '../../icecast.xml');
+    if (!fs.existsSync(xmlPath)) {
+      return res.status(404).json({ error: 'icecast.xml configuration template not found' });
+    }
+
+    let content = fs.readFileSync(xmlPath, 'utf8');
+
+    // 1. Replace clients limit
+    const clientsRegex = /(<clients>)\d+(<\/clients>)/;
+    content = content.replace(clientsRegex, `$1${parsedLimit}$2`);
+
+    // 2. Replace /radio mount max-listeners limit
+    const radioMountRegex = /(<mount-name>\/radio<\/mount-name>[\s\S]*?<max-listeners>)\d+(<\/max-listeners>)/g;
+    content = content.replace(radioMountRegex, `$1${parsedLimit}$2`);
+
+    // Write back to template
+    fs.writeFileSync(xmlPath, content, 'utf8');
+
+    // 3. Deploy to /etc/icecast2/icecast.xml and reload Icecast server
+    const deployCommand = 'sudo cp /home/ubuntu/radioplayone/icecast.xml /etc/icecast2/icecast.xml && sudo systemctl reload icecast2';
+    
+    exec(deployCommand, async (error, stdout, stderr) => {
+      if (error) {
+        logger.error('Failed to deploy icecast.xml or reload icecast2: %O. Stderr: %s', error, stderr);
+        // If /etc/icecast2/icecast.xml doesn't exist, we assume this is a dev/test environment
+        if (!fs.existsSync('/etc/icecast2/icecast.xml')) {
+          return res.json({ 
+            message: 'Local icecast.xml updated. (Systemd reload skipped in development)', 
+            limit: parsedLimit 
+          });
+        }
+        return res.status(500).json({ error: 'Failed to reload Icecast server configuration: ' + stderr });
+      }
+
+      await prisma.activityLog.create({
+        data: {
+          userId: req.user.id,
+          action: 'ICECAST_LIMIT_UPDATED',
+          details: `Updated Icecast max listeners limit to: ${parsedLimit}`
+        }
+      });
+
+      logger.info('Icecast max listeners updated and configuration reloaded successfully');
+      res.json({ message: 'Icecast limits updated and reloaded successfully', limit: parsedLimit });
+    });
+  } catch (error) {
+    logger.error('Failed to update Icecast limits: %O', error);
+    res.status(500).json({ error: 'Failed to update Icecast limits' });
   }
 });
 

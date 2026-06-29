@@ -1093,6 +1093,17 @@
               <span style="font-weight: 600; color: #00ff66;">Playout Stream Connected</span>
             </div>
 
+            <hr style="border: 0; border-top: 1px solid rgba(255,255,255,0.05); margin: 20px 0;">
+            <h4 style="color: var(--primary-color); font-weight: 600; font-size: 11px; text-transform: uppercase; margin-bottom: 12px; letter-spacing: 0.5px;">Icecast Server Resource Limits</h4>
+            <form id="icecast-limit-form" style="display: flex; gap: 12px; align-items: flex-end; margin-bottom: 20px;">
+              <div class="form-group" style="margin-bottom: 0; flex-grow: 1;">
+                <label class="form-label" style="font-size: 11px;">Maximum Concurrent Listeners Cap</label>
+                <input type="number" id="settings-icecast-limit" class="form-input" min="1" max="10000" required placeholder="e.g. 1000" style="background: rgba(0,0,0,0.3);">
+                <span style="font-size: 10px; color: var(--text-muted); margin-top: 4px; display: block;">Modifies system limits inside active `icecast.xml` and reloads Icecast daemon config without disconnects.</span>
+              </div>
+              <button type="submit" class="form-input" style="width: auto; height: 38px; background: var(--primary-color); color: #000; border: none; font-weight: 600; cursor: pointer; padding: 0 20px; margin: 0;">Apply Limit</button>
+            </form>
+
             <div style="margin-top: 20px; border-top: 1px solid rgba(255,255,255,0.08); padding-top: 20px;">
               <h4 style="color: var(--primary-color); font-weight: 600; font-size: 11px; text-transform: uppercase; margin-bottom: 12px; letter-spacing: 0.5px;">External & Mobile Stream Integration</h4>
               

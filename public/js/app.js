@@ -1639,6 +1639,11 @@ function loadThemeSettings() {
       document.getElementById('settings-broadcast-port').textContent = data.broadcast.port;
       document.getElementById('settings-broadcast-mount').textContent = data.broadcast.mount;
       document.getElementById('settings-broadcast-username').textContent = data.broadcast.username;
+      
+      const limitInput = document.getElementById('settings-icecast-limit');
+      if (limitInput && data.broadcast.maxListeners !== undefined) {
+        limitInput.value = data.broadcast.maxListeners;
+      }
     }
 
     // Populate sweeper spacing inputs
@@ -1884,6 +1889,28 @@ function setupForms() {
       .then(() => {
         showNotification('Sweeper playout spacing configurations saved successfully!', 'success');
         loadSystemSettings();
+      })
+      .catch(err => showNotification(err.message, 'error'));
+    });
+  }
+
+  // Icecast limits form submission
+  const icecastLimitForm = document.getElementById('icecast-limit-form');
+  if (icecastLimitForm) {
+    icecastLimitForm.addEventListener('submit', (e) => {
+      e.preventDefault();
+      const limitVal = parseInt(document.getElementById('settings-icecast-limit').value);
+      if (isNaN(limitVal) || limitVal < 1 || limitVal > 10000) {
+        return showNotification('Limit must be a number between 1 and 10000', 'error');
+      }
+
+      apiFetch('/settings/icecast-limit', {
+        method: 'POST',
+        body: { limit: limitVal }
+      })
+      .then(res => {
+        showNotification(res.message || 'Icecast limits updated and reloaded successfully!', 'success');
+        loadThemeSettings();
       })
       .catch(err => showNotification(err.message, 'error'));
     });
