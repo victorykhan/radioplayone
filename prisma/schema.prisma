@@ -71,6 +71,7 @@ model Playlist {
   scheduleTime   String?         // HH:MM format or Cron expression
   duration       Float           @default(0.0) // sum of track durations
   isLooping      Boolean         @default(true)
+  color          String?         // Hex color for calendar
   createdAt      DateTime        @default(now())
   updatedAt      DateTime        @updatedAt
   tracks         PlaylistTrack[]
@@ -96,6 +97,7 @@ model ScheduleSlot {
   playlistId  Int
   startAt     DateTime // Saved as UTC (converted from station timezone)
   endAt       DateTime // Saved as UTC (converted from station timezone)
+  color       String?  // Hex override color for calendar
   createdAt   DateTime @default(now())
 
   playlist    Playlist @relation(fields: [playlistId], references: [id], onDelete: Cascade)
