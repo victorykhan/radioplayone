@@ -140,6 +140,7 @@ router.post('/upload', authenticateJWT, requireRole(['ADMIN', 'PRODUCER']), uplo
         duration: audioData.duration,
         fileHash: audioData.fileHash,
         fileType: 'SONG',
+        bpm: audioData.bpm || null,
         hasEmbeddedPicture: !!audioData.picture
       }
     });
@@ -155,7 +156,7 @@ router.post('/upload', authenticateJWT, requireRole(['ADMIN', 'PRODUCER']), uplo
 
 // 2. Single Track Ingestion - Final Confirmation & Save Step
 router.post('/confirm', authenticateJWT, requireRole(['ADMIN', 'PRODUCER']), async (req, res) => {
-  const { tempFileId, title, artist, album, fileType, categories, volumeTrim, cueStart, cueEnd, isExplicit } = req.body;
+  const { tempFileId, title, artist, album, fileType, categories, volumeTrim, cueStart, cueEnd, isExplicit, bpm, energy, mood } = req.body;
 
   if (!tempFileId || !title) {
     return res.status(400).json({ error: 'tempFileId and title are required' });
@@ -223,6 +224,9 @@ router.post('/confirm', authenticateJWT, requireRole(['ADMIN', 'PRODUCER']), asy
         cueStart: parseFloat(cueStart) || 0.0,
         cueEnd: parseFloat(cueEnd) || audioData.duration,
         isExplicit: !!isExplicit,
+        bpm: bpm !== undefined && bpm !== null && bpm !== '' ? parseFloat(bpm) : (audioData.bpm || null),
+        energy: energy !== undefined && energy !== null && energy !== '' ? parseInt(energy) : null,
+        mood: mood || null,
         categories: {
           connect: categoryConnect
         }
@@ -333,6 +337,7 @@ router.post('/bulk', authenticateJWT, requireRole(['ADMIN', 'PRODUCER']), upload
           filePath: dest.relative,
           fileType: fileType,
           coverArtUrl: coverArtUrl,
+          bpm: audioData.bpm || null,
           cueEnd: audioData.duration
         }
       });

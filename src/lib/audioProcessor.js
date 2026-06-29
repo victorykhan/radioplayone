@@ -39,6 +39,7 @@ export const processAudioFile = async (filePath) => {
     duration: metadata.format.duration || 0, // in seconds
     bitrate: metadata.format.bitrate || 0,
     sampleRate: metadata.format.sampleRate || 0,
+    bpm: metadata.common.bpm || null,
     picture
   };
 };
