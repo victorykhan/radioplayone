@@ -28,12 +28,12 @@ JWT_SECRET=super-secret-radio-key
 LOG_LEVEL=debug
 
 # Database Connection (MySQL remote)
-DATABASE_URL="mysql://vkhan1:Canada05@localhost:3306/radioplay"
+DATABASE_URL="mysql://vkhan1:Canada05@localhost:3306/playone"
 
 # Icecast Output Stream Credentials
 ICECAST_HOST=localhost
 ICECAST_PORT=8000
-ICECAST_MOUNT=/stream
+ICECAST_MOUNT=/playout
 ICECAST_SOURCE_PASSWORD=hackme
 
 # Audio Playout Engine Defaults
