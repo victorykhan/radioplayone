@@ -34,12 +34,12 @@ DATABASE_URL="mysql://vkhan1:Canada05@localhost:3306/playone"
 ICECAST_HOST=localhost
 ICECAST_PORT=8000
 ICECAST_MOUNT=/playout
-ICECAST_SOURCE_PASSWORD=hackme
+ICECAST_SOURCE_PASSWORD=RadioPlay2024!
 
 # Audio Playout Engine Defaults
 DEFAULT_FADE_DURATION=3
 STREAM_BITRATE=128k
-START_PLAYOUT_ON_BOOT=false # Set to true once Icecast is running
+START_PLAYOUT_ON_BOOT=true # Set to true once Icecast is running
 EOF
 
 # 3. Create required directories
