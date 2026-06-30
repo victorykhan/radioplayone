@@ -16,6 +16,20 @@ router.get('/now-playing', (req, res) => {
   np.isSourceConnected = playoutEngine.isSourceConnected;
   np.live_dj_active = playoutEngine.isDJLive;
 
+  if (playoutEngine.isDJLive) {
+    np.now_playing = {
+      id: -1,
+      title: 'Main Studio',
+      artist: 'Live DJ',
+      duration: 3600,
+      fileType: 'LIVE_DJ',
+      started_at: playoutState.startedAt || new Date(),
+      elapsed: np.now_playing ? np.now_playing.elapsed : 0,
+      coverArtUrl: '/covers/default.jpg',
+      playoutSource: 'Live takeover'
+    };
+  }
+
   // Determine if requester is an authenticated operator (admin/producer/DJ)
   let showAll = false;
   const token = (req.headers.authorization && req.headers.authorization.split(' ')[1]) || req.query.token;
