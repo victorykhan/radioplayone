@@ -1287,7 +1287,7 @@
 
           <!-- Add new user form -->
           <div style="background: rgba(0,0,0,0.15); padding: 18px; border-radius: 8px; border: 1px solid rgba(255,255,255,0.04);">
-            <h4 style="font-weight: 600; font-size: 13px; margin-bottom: 12px; color: var(--primary-color);">Create New User</h4>
+            <h4 id="settings-user-form-title" style="font-weight: 600; font-size: 13px; margin-bottom: 12px; color: var(--primary-color);">Create New User</h4>
             <form id="settings-create-user-form">
               <div class="form-group">
                 <label class="form-label">Email Address</label>
@@ -1308,7 +1308,10 @@
                   </select>
                 </div>
               </div>
-              <button type="submit" class="form-input" style="background: rgba(255,255,255,0.06); border-color: rgba(255,255,255,0.1); cursor: pointer; color: var(--text-main); font-weight:600; margin-top: 4px;">＋ Create User</button>
+              <div style="display: flex; gap: 10px; margin-top: 4px;">
+                <button type="submit" id="settings-user-submit-btn" class="form-input" style="background: rgba(255,255,255,0.06); border-color: rgba(255,255,255,0.1); cursor: pointer; color: var(--text-main); font-weight:600; flex: 2; margin: 0;">＋ Create User</button>
+                <button type="button" id="settings-user-cancel-btn" class="form-input" style="background: rgba(255,255,255,0.03); border-color: rgba(255,255,255,0.06); cursor: pointer; color: var(--text-muted); font-weight:500; flex: 1; margin: 0; display: none;">Cancel</button>
+              </div>
             </form>
           </div>
         </div>

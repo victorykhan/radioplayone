@@ -3382,6 +3382,8 @@ function drawSystemSparkline(canvasId, history, color) {
 // ═══════════════════════════════════════════════════════════════
 // USER DIRECTORY & MANAGEMENT CONTROLLER
 // ═══════════════════════════════════════════════════════════════
+let editingUserId = null;
+
 function loadSettingsUsers() {
   if (!currentUser || currentUser.role !== 'ADMIN') return;
 
@@ -3402,11 +3404,38 @@ function loadSettingsUsers() {
               ${user.role}
             </span>
           </td>
-          <td style="text-align: right; padding: 10px 14px 10px 0; border-bottom: 1px solid rgba(255,255,255,0.04);">
+          <td style="text-align: right; padding: 10px 14px 10px 0; border-bottom: 1px solid rgba(255,255,255,0.04); display: flex; gap: 8px; justify-content: flex-end;">
+            <button class="queue-item-btn user-edit-btn" data-id="${user.id}" data-email="${user.email}" data-role="${user.role}" title="Edit User" style="background: rgba(255,255,255,0.05); border-color: rgba(255,255,255,0.1); color: var(--text-main);">✎</button>
             ${isSelf ? '' : `<button class="queue-item-btn remove-btn user-delete-btn" data-id="${user.id}" title="Delete User">✕</button>`}
           </td>
         `;
         tbody.appendChild(tr);
+      });
+
+      // Bind edit buttons
+      tbody.querySelectorAll('.user-edit-btn').forEach(btn => {
+        btn.addEventListener('click', (e) => {
+          e.stopPropagation();
+          const id = parseInt(btn.dataset.id);
+          const email = btn.dataset.email;
+          const role = btn.dataset.role;
+
+          editingUserId = id;
+          document.getElementById('settings-user-form-title').innerText = `Edit User: ${email}`;
+          document.getElementById('new-user-email').value = email;
+          document.getElementById('new-user-email').disabled = true;
+          document.getElementById('new-user-role').value = role;
+
+          // Password field becomes optional
+          const pwdField = document.getElementById('new-user-password');
+          pwdField.required = false;
+          pwdField.placeholder = 'Leave blank to keep current';
+          pwdField.value = '';
+
+          // Update buttons
+          document.getElementById('settings-user-submit-btn').innerText = '💾 Save Changes';
+          document.getElementById('settings-user-cancel-btn').style.display = 'block';
+        });
       });
 
       // Bind delete buttons
@@ -3417,6 +3446,9 @@ function loadSettingsUsers() {
           showConfirm('Delete User Account', 'Are you sure you want to permanently delete this user from the system?', () => {
             apiFetch(`/auth/${userId}`, { method: 'DELETE' })
               .then(() => {
+                if (editingUserId === parseInt(userId)) {
+                  resetUserForm();
+                }
                 loadSettingsUsers();
                 showNotification('User account deleted successfully', 'success');
               })
@@ -3428,10 +3460,34 @@ function loadSettingsUsers() {
     .catch(err => console.error('Failed to load users directory:', err));
 }
 
+function resetUserForm() {
+  editingUserId = null;
+  document.getElementById('settings-user-form-title').innerText = 'Create New User';
+  
+  const emailField = document.getElementById('new-user-email');
+  emailField.value = '';
+  emailField.disabled = false;
+
+  const pwdField = document.getElementById('new-user-password');
+  pwdField.required = true;
+  pwdField.placeholder = '••••••••';
+  pwdField.value = '';
+
+  document.getElementById('new-user-role').value = 'ADMIN';
+
+  document.getElementById('settings-user-submit-btn').innerText = '＋ Create User';
+  document.getElementById('settings-user-cancel-btn').style.display = 'none';
+}
+
 // Register form submission listener
 (function initUserMgmtForm() {
   const form = document.getElementById('settings-create-user-form');
   if (!form) return;
+
+  const cancelBtn = document.getElementById('settings-user-cancel-btn');
+  if (cancelBtn) {
+    cancelBtn.addEventListener('click', resetUserForm);
+  }
 
   form.addEventListener('submit', (e) => {
     e.preventDefault();
@@ -3439,17 +3495,31 @@ function loadSettingsUsers() {
     const password = document.getElementById('new-user-password').value;
     const role = document.getElementById('new-user-role').value;
 
-    apiFetch('/auth/register', {
-      method: 'POST',
-      body: { email, password, role }
-    })
-    .then(() => {
-      document.getElementById('new-user-email').value = '';
-      document.getElementById('new-user-password').value = '';
-      loadSettingsUsers();
-      showNotification('User account registered successfully', 'success');
-    })
-    .catch(err => showNotification(err.message, 'error'));
+    if (editingUserId !== null) {
+      // Edit mode: Send PUT request
+      apiFetch(`/auth/${editingUserId}`, {
+        method: 'PUT',
+        body: { role, password }
+      })
+      .then(() => {
+        resetUserForm();
+        loadSettingsUsers();
+        showNotification('User account updated successfully', 'success');
+      })
+      .catch(err => showNotification(err.message, 'error'));
+    } else {
+      // Create mode: Send POST request
+      apiFetch('/auth/register', {
+        method: 'POST',
+        body: { email, password, role }
+      })
+      .then(() => {
+        resetUserForm();
+        loadSettingsUsers();
+        showNotification('User account registered successfully', 'success');
+      })
+      .catch(err => showNotification(err.message, 'error'));
+    }
   });
 })();
 

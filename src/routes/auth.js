@@ -196,4 +196,58 @@ router.delete('/:id', authenticateJWT, requireRole(['ADMIN']), async (req, res) 
   }
 });
 
+// 3. Update a user (ADMIN only, role and/or password)
+router.put('/:id', authenticateJWT, requireRole(['ADMIN']), async (req, res) => {
+  const targetId = parseInt(req.params.id);
+  const { role, password } = req.body;
+
+  try {
+    const user = await prisma.user.findUnique({ where: { id: targetId } });
+    if (!user) {
+      return res.status(404).json({ error: 'User not found' });
+    }
+
+    // Do not allow an admin to change their own role to prevent lockout
+    if (req.user.id === targetId && role && role !== user.role) {
+      return res.status(400).json({ error: 'Access denied: You cannot change your own role to prevent administrative lockout' });
+    }
+
+    const updateData = {};
+    if (role) {
+      if (!['ADMIN', 'PRODUCER', 'DJ', 'VIEWER'].includes(role)) {
+        return res.status(400).json({ error: 'Invalid role' });
+      }
+      updateData.role = role;
+    }
+
+    if (password && password.trim() !== '') {
+      const salt = await bcrypt.genSalt(10);
+      updateData.passwordHash = await bcrypt.hash(password, salt);
+    }
+
+    const updatedUser = await prisma.user.update({
+      where: { id: targetId },
+      data: updateData,
+      select: {
+        id: true,
+        email: true,
+        role: true
+      }
+    });
+
+    await prisma.activityLog.create({
+      data: {
+        userId: req.user.id,
+        action: 'USER_UPDATED',
+        details: `Updated user: ${user.email}. Changed fields: ${Object.keys(updateData).join(', ')}`
+      }
+    });
+
+    res.json({ message: 'User updated successfully', user: updatedUser });
+  } catch (error) {
+    logger.error('Failed to update user: %O', error);
+    res.status(500).json({ error: 'Failed to update user' });
+  }
+});
+
 export default router;
