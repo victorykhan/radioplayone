@@ -77,13 +77,12 @@ class PlayoutEngine {
       // 0. If DJ is live, serve safety silence to pause automated playout
       if (this.isDJLive) {
         logger.info('Liquidsoap: DJ is live. Serving safety silence track to pause playout.');
-        const silencePath = path.resolve(__dirname, '../../storage/silence.mp3');
         return {
           id: -1,
           title: 'Live DJ Session',
           artist: 'Live Broadcast',
           duration: 5,
-          filePath: silencePath,
+          filePath: 'silence.mp3',
           fileType: 'SILENCE',
           cueStart: 0,
           cueEnd: 5
