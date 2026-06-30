@@ -106,10 +106,18 @@ async function syncListeners() {
     // 0. Poll stats to check if a live DJ is connected to /live mount
     try {
       const statsXml = await fetchIcecastStats();
-      const isLiveConnected = statsXml.includes('<source mount="/live">') || statsXml.includes('mount="/live"');
+      const match = statsXml.match(/<source mount="\/live">([\s\S]*?)<\/source>/);
+      const isLiveConnected = match ? (match[1].includes('<source_ip>') || match[1].includes('<server_type>')) : false;
+
       if (isLiveConnected !== playoutEngine.isDJLive) {
         playoutEngine.isDJLive = isLiveConnected;
         logger.info(`Listener Sync: Live DJ status changed. Connected: ${isLiveConnected}`);
+        if (!isLiveConnected) {
+          logger.info('Listener Sync: DJ disconnected. Resuming playout automation immediately.');
+          playoutEngine.skip().catch(err => {
+            logger.warn(`Listener Sync: Failed to trigger auto-skip on DJ disconnect: ${err.message}`);
+          });
+        }
       }
     } catch (statsErr) {
       if (playoutEngine.isDJLive) {
