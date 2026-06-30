@@ -61,7 +61,7 @@ server.register(
   usage="live_dj.start",
   "start",
   fun (arg) -> begin
-    source.start(live_dj)
+    live_dj.start()
     "DJ input started"
   end
 )
@@ -72,7 +72,7 @@ server.register(
   usage="live_dj.stop",
   "stop",
   fun (arg) -> begin
-    source.stop(live_dj)
+    live_dj.stop()
     "DJ input stopped"
   end
 )
