@@ -43,13 +43,45 @@ mixed_stream = smooth_add(duration=0.5, p=0.15, normal=music, special=imaging)
 # Mix B: Duck the resulting program to 25% gain when manual instant carts play
 mixed_stream = smooth_add(duration=0.4, p=0.25, normal=mixed_stream, special=carts)
 
-# === 0. LIVE DJ INPUT SOURCE ===
-# Dynamic input to pull Live DJ stream from Icecast mount
-live_dj = input.http("http://127.0.0.1:8000/live")
-
 # Fallback safety silence in case of empty sources
 safety_silence = blank()
-stream = fallback(track_sensitive=false, [live_dj, mixed_stream, safety_silence])
+
+# === 0. LIVE DJ INPUT SOURCE ===
+# Dynamic input to pull Live DJ stream from Icecast mount (disabled on boot)
+live_dj = input.http(id="live_dj", start=false, max_buffer=1.0, timeout=5.0, "http://127.0.0.1:8000/live")
+live_dj_safe = fallback(track_sensitive=false, [live_dj, safety_silence])
+
+# Define interactive bool controlled via Telnet by Node app
+live_dj_active = interactive.bool("live_dj_active", false)
+
+# Register custom Telnet commands for starting/stopping the Live DJ stream
+server.register(
+  namespace="live_dj",
+  description="Start the Live DJ HTTP client pull source",
+  usage="live_dj.start",
+  "start",
+  fun (arg) -> begin
+    source.start(live_dj)
+    "DJ input started"
+  end
+)
+
+server.register(
+  namespace="live_dj",
+  description="Stop the Live DJ HTTP client pull source",
+  usage="live_dj.stop",
+  "stop",
+  fun (arg) -> begin
+    source.stop(live_dj)
+    "DJ input stopped"
+  end
+)
+
+# Use dynamic switch controlled by Node Telnet commands for click-free seamless handover
+stream = switch(track_sensitive=false, [
+  ({ live_dj_active() }, live_dj_safe),
+  ({ true },             mixed_stream)
+])
 
 # Master volume control (interactive, adjustable via Telnet: var.set master_vol = 0.75)
 master_vol = interactive.float("master_vol", 1.0)

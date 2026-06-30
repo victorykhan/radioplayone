@@ -112,11 +112,23 @@ async function syncListeners() {
       if (isLiveConnected !== playoutEngine.isDJLive) {
         playoutEngine.isDJLive = isLiveConnected;
         logger.info(`Listener Sync: Live DJ status changed. Connected: ${isLiveConnected}`);
-        if (!isLiveConnected) {
-          logger.info('Listener Sync: DJ disconnected. Resuming playout automation immediately.');
-          playoutEngine.skip().catch(err => {
-            logger.warn(`Listener Sync: Failed to trigger auto-skip on DJ disconnect: ${err.message}`);
-          });
+
+        // Update Liquidsoap interactive switch state and HTTP decoder state
+        try {
+          if (isLiveConnected) {
+            logger.info('Listener Sync: DJ connected. Starting decoder and activating switch...');
+            await playoutEngine.sendTelnetCommand('live_dj.start');
+            await playoutEngine.sendTelnetCommand('var.set live_dj_active = true');
+          } else {
+            logger.info('Listener Sync: DJ disconnected. Deactivating switch and stopping decoder...');
+            await playoutEngine.sendTelnetCommand('var.set live_dj_active = false');
+            await playoutEngine.sendTelnetCommand('live_dj.stop');
+            
+            logger.info('Listener Sync: DJ disconnected. Resuming playout automation immediately.');
+            await playoutEngine.skip();
+          }
+        } catch (telnetErr) {
+          logger.error(`Listener Sync: Failed to toggle Live DJ in Liquidsoap: ${telnetErr.message}`);
         }
       }
     } catch (statsErr) {
