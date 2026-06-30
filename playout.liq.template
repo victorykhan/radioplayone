@@ -43,9 +43,13 @@ mixed_stream = smooth_add(duration=0.5, p=0.15, normal=music, special=imaging)
 # Mix B: Duck the resulting program to 25% gain when manual instant carts play
 mixed_stream = smooth_add(duration=0.4, p=0.25, normal=mixed_stream, special=carts)
 
+# === 0. LIVE DJ INPUT SOURCE ===
+# Dynamic input to pull Live DJ stream from Icecast mount
+live_dj = input.http("http://127.0.0.1:8000/live")
+
 # Fallback safety silence in case of empty sources
 safety_silence = blank()
-stream = fallback(track_sensitive=false, [mixed_stream, safety_silence])
+stream = fallback(track_sensitive=false, [live_dj, mixed_stream, safety_silence])
 
 # Master volume control (interactive, adjustable via Telnet: var.set master_vol = 0.75)
 master_vol = interactive.float("master_vol", 1.0)
